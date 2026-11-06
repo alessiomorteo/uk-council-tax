@@ -68,6 +68,17 @@ Table 12 = properties and rateable value by council area;
 Table 4 = relief counts and values by council area (1 June 2025 snapshot).
 <https://www.gov.scot/publications/non-domestic-rates-relief-statistics-2025/>
 
+## Rateable value (England and Wales)
+
+**2011 to 2025, by local authority**
+Valuation Office Agency. *Non-domestic rating: stock of properties, 2025*.
+Table SOP3.2 = total rateable value by administrative area and financial year;
+Table SOP3.1 = number of rateable properties. Values in £ thousands.
+Two filters are required: `LAUA` rows only (not `CTYMET`, which are counties at a
+different geography level), and rows with no `abolished year` (the file retains
+legacy districts merged away in 2019, 2021 and 2023).
+<https://www.gov.uk/government/statistics/non-domestic-rating-stock-of-properties-2025>
+
 ## Earnings
 
 **Median gross annual pay, 2025**

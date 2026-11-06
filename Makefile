@@ -21,6 +21,7 @@ discounts:
 	$(PY) src/build/discount_values.py
 
 rates:
+	$(PY) src/build/rateable_value.py
 	$(PY) src/build/business_rates.py
 
 figures:

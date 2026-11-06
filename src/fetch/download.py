@@ -85,6 +85,7 @@ def main(force: bool = False) -> None:
     fetch(SOURCES["nndr_england"], DATA_RAW / "nndr1_supplementary_2026-27.xlsx", force)
     fetch(SOURCES["nndr_wales"], DATA_RAW / "nndr_wales_estimates.csv", force)
     fetch(SOURCES["nndr_scotland"], DATA_RAW / "nndr_scotland_reliefs_2025.xlsx", force)
+    fetch(SOURCES["voa_ndr_stock"], DATA_RAW / "voa_ndr_stock_2025.xlsx", force)
 
     ashe_archive = DATA_RAW / "ashe_table8_2025.zip"
     fetch(SOURCES["ashe_earnings"], ashe_archive, force)

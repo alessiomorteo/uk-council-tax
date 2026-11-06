@@ -115,15 +115,25 @@ published sources differ sharply in shape and vintage:
 
 | | England | Wales | Scotland |
 |---|---|---|---|
-| Source | NNDR1 supplementary | StatsWales estimates | NDR reliefs publication |
-| Year | 2026-27 | 2026-27 | 2025-26 |
+| Relief source | NNDR1 supplementary | StatsWales estimates | NDR reliefs publication |
+| Relief year | 2026-27 | 2026-27 | 2025-26 |
 | Hereditaments | 1,990,047 | 124,517 | 253,608 |
-| Rateable value | **not published** | £2.79bn | £7.58bn |
+| Rateable value | £68.50bn | £2.44bn | £7.58bn |
 | Relief value | £1.82bn (SBRR) | £0.28bn | £0.73bn |
 
-England publishes the richest relief breakdown — 30 relief types across three
-sheets — but **not rateable value**, so the map panel is grey for England. That
-is a genuine gap in the release, not an omission here.
+The NNDR1 release does **not** publish rateable value, which initially left
+England blank. The VOA *stock of properties* release fills it: Table SOP3.2 gives
+total rateable value by administrative area for every year from **2011 to 2025**,
+with ONS codes. England reconciles to the published **68,503,619 thousand
+pounds** exactly.
+
+Two filters are needed and both matter. Only `LAUA` rows are local authorities —
+`CTYMET` rows are counties at a different geography level and double-count. And
+only rows with no `abolished year` are current: the file retains 36 legacy
+districts merged away in 2019, 2021 and 2023, which inflate the total.
+
+The 15-year series shows England's rateable value rising **20% from £57.0bn to
+£68.5bn**, with visible steps at the 2017 and 2023 revaluations.
 
 Scotland's **designated utilities** are held as their own row rather than
 assigned to a council: 54 properties, £799m of rateable value, valued centrally.
@@ -231,7 +241,7 @@ already present; pass `--force` to refetch.
 | `output/figures/revenue.png` | revenue per dwelling, rate against base, nation totals |
 | `output/figures/discounts.png` | exempt rate map, rate distributions, extremes |
 | `output/figures/discount_values.png` | discounts priced in pounds, ranked, waterfall |
-| `output/figures/business_rates.png` | rateable value map, relief against stock, nation totals |
+| `output/figures/business_rates.png` | rateable value map, 15-year series, nation totals |
 | `output/pages/map.html` | interactive map, 6 views, hover detail |
 | `output/pages/table.html` | sortable/filterable 348-row table, 21 columns |
 

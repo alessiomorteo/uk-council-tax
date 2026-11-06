@@ -193,3 +193,33 @@ enough at a glance to pass unnoticed.
 
 **Rejected:** converting in the combined frame with one rule. The units genuinely
 differ per source, so the conversion has to sit next to the parse.
+
+---
+
+## Take England and Wales rateable value from the VOA, not NNDR1
+
+**Decision:** source rateable value from the VOA stock of properties release for
+both England and Wales, rather than leaving England blank or using StatsWales for
+Wales.
+
+**Why:** the NNDR1 supplementary workbook has no rateable value at all, which
+left the England column empty and made the map panel meaningless. The VOA
+publishes it for every authority back to 2011. Using one source for both nations
+means they share a basis and a vintage, which StatsWales would not: its aggregate
+rateable value is £2.79bn against the VOA's £2.44bn for Wales, because it is an
+estimate basis for billing rather than the rating list.
+
+**Rejected:** leaving England blank (the gap is fillable), and mixing VOA for
+England with StatsWales for Wales (two bases on one axis).
+
+## Exclude abolished authorities from the VOA table
+
+**Decision:** filter the VOA rows to those with no `abolished year`.
+
+**Why:** the file is a time series, so it retains districts that no longer exist.
+England has 332 `LAUA` rows but only 296 current authorities; the extra 36 are
+Allerdale, Carlisle, Copeland, Barrow-in-Furness, Eden and others merged away in
+2019, 2021 and 2023. Including them gives £72.4bn against the published £68.5bn.
+
+The `CTYMET` rows are a second trap: they are counties and metropolitan counties,
+which sit above districts and double-count the same properties.

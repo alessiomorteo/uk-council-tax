@@ -21,7 +21,7 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import DATA_PROC, DATA_RAW, norm_name  # noqa: E402
+from config import DATA_PROC, DATA_RAW, ONS_RECODE, norm_name  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
@@ -266,6 +266,36 @@ def main() -> None:
     combined["relief_charity"] = combined["relief_charity_m"] * 1e3
     combined["relief_value"] = combined["relief_value_m"] * 1e6
 
+    # Fold in VOA rateable value for England and Wales. The NNDR1 release omits
+    # it entirely, so England would otherwise have no rateable value at all.
+    # Wales is taken from the VOA rather than StatsWales so that England and
+    # Wales share one basis and one vintage. This runs after unit normalisation
+    # so the VOA figures, which are already in pounds, are not rescaled.
+    voa = pd.read_csv(DATA_PROC / "rateable_value.csv")
+    # The year column round-trips through CSV as an integer, so compare as one.
+    voa = voa[voa.year.astype(str) == "2025"][
+        ["ons_code", "rateable_value", "rateable_properties"]
+    ]
+    voa = voa.rename(
+        columns={
+            "rateable_value": "voa_rateable_value",
+            "rateable_properties": "voa_rateable_properties",
+        }
+    )
+    # The VOA file still uses the pre-recode codes for Barnsley and Sheffield.
+    voa["ons_code"] = voa["ons_code"].map(lambda c: ONS_RECODE.get(c, c))
+    combined = combined.merge(voa, on="ons_code", how="left")
+
+    combined["rateable_value"] = combined["voa_rateable_value"].fillna(
+        combined["rateable_value"]
+    )
+    combined["rateable_properties"] = combined["voa_rateable_properties"].fillna(
+        combined["hdits_total"]
+    )
+    combined = combined.drop(
+        columns=["voa_rateable_value", "voa_rateable_properties"]
+    )
+
     columns = [
         "nation",
         "authority",
@@ -274,6 +304,7 @@ def main() -> None:
         "year",
         "hdits_total",
         "rateable_value",
+        "rateable_properties",
         "gross_rates_payable",
         "relief_properties",
         "relief_value",

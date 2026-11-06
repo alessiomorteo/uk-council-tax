@@ -1083,8 +1083,7 @@ def fig_business_rates(rates: pd.DataFrame) -> None:
     councils = rates[rates.authority_type != "UTIL"].copy()
     councils["rv_per_hdit"] = councils["rateable_value"] / councils["hdits_total"]
 
-    # Panel 1: rateable value per hereditament. Wales and Scotland only, because
-    # England does not publish rateable value in this release.
+    # Panel 1: rateable value per hereditament, now available for all three.
     axis_map = figure.add_subplot(grid[0, 0])
     geo = load_geo()
     lookup = {row.authority: row for _, row in councils.iterrows()}
@@ -1115,45 +1114,50 @@ def fig_business_rates(rates: pd.DataFrame) -> None:
         scalar, ax=axis_map, orientation="horizontal", fraction=0.045, pad=0.02
     )
     colourbar.set_label("Rateable value per hereditament (£)", fontsize=9)
-    axis_map.text(
-        0.5, -0.02,
-        "England is grey: rateable value is not in this release.",
-        transform=axis_map.transAxes, fontsize=8.2, color="#777",
-        ha="center", va="top",
-    )
 
-    # Panel 2: hereditaments against relief value, by nation.
+    # Panel 2: the 15-year rateable value series, which the VOA file supplies.
     axis_scatter = figure.add_subplot(grid[0, 1])
-    for nation, group in councils.groupby("nation"):
-        usable = group.dropna(subset=["hdits_total", "relief_value"])
-        if not len(usable):
-            continue
-        axis_scatter.scatter(
-            usable["hdits_total"] / 1000,
-            usable["relief_value"] / 1e6,
-            s=26,
-            alpha=0.72,
+    history = pd.read_csv(DATA_PROC / "rateable_value.csv")
+    history["year"] = history["year"].astype(int)
+    national = (
+        history.groupby(["nation", "year"]).rateable_value.sum().reset_index()
+    )
+    for nation, group in national.groupby("nation"):
+        axis_scatter.plot(
+            group["year"],
+            group["rateable_value"] / 1e9,
             color=NATION_COLOUR[nation],
+            linewidth=2.2,
+            marker="o",
+            markersize=3.4,
             label=nation,
-            edgecolor="white",
-            linewidth=0.4,
         )
-    axis_scatter.set_xscale("log")
-    axis_scatter.set_yscale("log")
-    axis_scatter.set_xlabel("Hereditaments (000s, log scale)", fontsize=9.5)
-    axis_scatter.set_ylabel("Relief value (£m, log scale)", fontsize=9.5)
+    axis_scatter.set_xlabel("Year (31 March)", fontsize=9.5)
+    axis_scatter.set_ylabel("Rateable value (£bn)", fontsize=9.5)
     axis_scatter.set_title(
-        "Relief against stock", fontsize=13, fontweight="bold", loc="left", pad=9
+        "Fifteen years of rateable value",
+        fontsize=13, fontweight="bold", loc="left", pad=9,
     )
     axis_scatter.text(
         0.5, 1.005,
-        "Both axes are logarithmic: the range spans two orders of magnitude.",
+        "England and Wales from the VOA stock of properties, 2011 to 2025.",
         transform=axis_scatter.transAxes, fontsize=8.4, color="#666",
         ha="center", va="bottom",
     )
-    axis_scatter.legend(frameon=False, fontsize=9, loc="lower right")
+    axis_scatter.legend(frameon=False, fontsize=9, loc="center left")
     axis_scatter.grid(alpha=0.18, linewidth=0.6)
     axis_scatter.set_axisbelow(True)
+
+    # The series steps at revaluation years: 2017 (list from 1 April 2017) and
+    # 2023 (list from 1 April 2023), both visible in the following 31 March.
+    for revaluation in (2017, 2023):
+        axis_scatter.axvline(revaluation, color="#999", linewidth=0.9, linestyle=":")
+        axis_scatter.annotate(
+            f"{revaluation} revaluation",
+            (revaluation, axis_scatter.get_ylim()[0]),
+            fontsize=7.4, color="#777", rotation=90,
+            va="bottom", ha="right", xytext=(-3, 4), textcoords="offset points",
+        )
 
     # Panel 3: nation summary.
     axis_table = figure.add_subplot(grid[0, 2])
@@ -1193,11 +1197,12 @@ def fig_business_rates(rates: pd.DataFrame) -> None:
     axis_table.text(
         0.0, 0.34,
         "Business rates are collected by the same billing authorities as\n"
-        "council tax, but the published sources differ in shape and vintage:\n"
-        "England 2026-27, Scotland 2025-26, Wales 2026-27.\n\n"
-        "England publishes relief counts and values but not rateable value.\n"
-        "Wales and Scotland publish both. Figures are therefore not\n"
-        "comparable across all three on every measure.\n\n"
+        "council tax. Rateable value comes from the VOA stock of properties\n"
+        "(31 March 2025) for England and Wales, and from the Scottish\n"
+        "valuation roll (1 June 2025) for Scotland.\n\n"
+        "Relief values are on different vintages: England 2026-27 forecast,\n"
+        "Wales 2026-27 estimate, Scotland 2025-26 snapshot. The hereditament\n"
+        "and rateable value columns are the comparable ones.\n\n"
         "Scotland's designated utilities (£799m of rateable value across 54\n"
         "properties) are held as a separate row, not assigned to a council.",
         transform=axis_table.transAxes, fontsize=8.5, color="#555",

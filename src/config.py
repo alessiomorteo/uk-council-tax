@@ -76,6 +76,10 @@ SOURCES: dict[str, str] = {
         "https://api.stats.gov.wales/v2/8e0d656a-50ea-4509-8363-c52d8315b750/"
         "data?format=csv&lang=en-gb"
     ),
+    "voa_ndr_stock": (
+        "https://assets.publishing.service.gov.uk/media/68df8415c487360cc70ca0af/"
+        "ndr_stock_of_properties_2025.xlsx"
+    ),
     "nndr_scotland": (
         "https://www.gov.scot/binaries/content/documents/govscot/publications/"
         "statistics/2025/11/non-domestic-rates-relief-statistics-2025/documents/"

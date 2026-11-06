@@ -514,6 +514,53 @@ def check_business_rates(rates: pd.DataFrame) -> None:
     )
 
 
+def check_rateable_value(values: pd.DataFrame) -> None:
+    """Assert the VOA rateable value table reconciles to published totals.
+
+    Args:
+        values: The long rateable value table.
+    """
+    check(
+        "rateable value: 15 years from 2011 to 2025",
+        values.year.nunique() == 15 and str(values.year.min()) == "2011",
+        f"{values.year.nunique()} years",
+    )
+    check(
+        "rateable value: England has 296 current authorities",
+        values[(values.nation == "England") & (values.year == 2025)].authority.nunique()
+        == 296,
+        values[(values.nation == "England") & (values.year == 2025)].authority.nunique(),
+    )
+    check(
+        "rateable value: Wales has 22 current authorities",
+        values[(values.nation == "Wales") & (values.year == 2025)].authority.nunique()
+        == 22,
+        values[(values.nation == "Wales") & (values.year == 2025)].authority.nunique(),
+    )
+
+    latest = values[values.year == 2025]
+    england = latest[latest.nation == "England"].rateable_value.sum()
+    check(
+        "rateable value: England 2025 is £68.5bn",
+        abs(england - 68.5036e9) / 68.5036e9 < 0.001,
+        f"£{england / 1e9:.3f}bn",
+    )
+    wales = latest[latest.nation == "Wales"].rateable_value.sum()
+    check(
+        "rateable value: Wales 2025 is £2.44bn",
+        abs(wales - 2.4402e9) / 2.4402e9 < 0.01,
+        f"£{wales / 1e9:.3f}bn",
+    )
+
+    # Abolished authorities must be excluded: 332 English rows include 36 legacy
+    # districts merged away in 2019, 2021 and 2023.
+    check(
+        "rateable value: abolished authorities are excluded",
+        latest[latest.nation == "England"].authority.nunique() == 296,
+        latest[latest.nation == "England"].authority.nunique(),
+    )
+
+
 def main() -> None:
     """Run every validation check.
 
@@ -539,6 +586,7 @@ def main() -> None:
     check_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
     check_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
     check_business_rates(pd.read_csv(DATA_PROC / "business_rates.csv"))
+    check_rateable_value(pd.read_csv(DATA_PROC / "rateable_value.csv"))
 
     print()
     if FAILURES:
