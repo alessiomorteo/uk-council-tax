@@ -53,16 +53,27 @@ pip install -r requirements.txt
 
 ```
 src/
-  config.py              paths, source URLs, statutory ladders, ONS recodes
-  fetch/download.py      download all raw sources -> data/raw/
-  build/parse.py         raw -> tidy long CSVs -> data/processed/
-  build/align.py         attach multipliers, validate, nation ladder
-  build/join.py          join boundaries + earnings, derive affordability
-  render/figures.py      static PNGs -> output/figures/
-  render/pages.py        interactive map + table -> output/pages/
-  render/templates/      HTML templates (data inlined at build time)
-  validate.py            assert every invariant; exits non-zero on failure
+├── config.py                    paths, source URLs, statutory ladders, ONS recodes
+├── validate.py                  assert every invariant; exits non-zero on failure
+│
+├── fetch/
+│   └── download.py              download all raw sources -> data/raw/
+│
+├── build/
+│   ├── parse.py                 raw -> tidy long CSVs -> data/processed/
+│   ├── align.py                 attach multipliers, validate, nation ladder
+│   └── join.py                  join boundaries + earnings, derive affordability
+│
+└── render/
+    ├── figures.py               static PNGs -> output/figures/
+    ├── pages.py                 interactive map and table -> output/pages/
+    └── templates/
+        ├── map.html             map page shell; GeoJSON inlined as __GEODATA__
+        └── table.html           table page shell; rows inlined as __ROWDATA__
 ```
+
+The three stage directories run in order: `fetch` then `build` then `render`.
+`config.py` is shared by all of them and `validate.py` is run last by `make all`.
 
 Each stage is independently runnable and idempotent. `download.py` skips files
 already present; pass `--force` to refetch.
