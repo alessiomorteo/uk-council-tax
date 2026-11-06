@@ -24,6 +24,27 @@ Welsh Government / StatsWales.
 Scottish Government. *Council Tax Assumptions (CTAS) — Council Tax by Band 2026-27*.
 <https://www.gov.scot/publications/council-tax-datasets/>
 
+## Council Taxbase (dwellings per band)
+
+**England — 2025**
+MHCLG. *Council Taxbase 2025 in England (revised)*, local authority drop-down.
+Sheet `Council Taxbase Data`, columns 5–12 (band counts) and 287 (Table 1.29,
+tax base in Band D equivalents). The sheet holds 35 tables side by side with 31
+duplicate `Band A` headers, so columns are selected by position.
+<https://www.gov.uk/government/statistics/council-taxbase-2025-in-england>
+
+**Wales — 1996-97 to 2026-27**
+Welsh Government / StatsWales. *Council tax dwellings by band*, dataset
+`062488e2-3fd6-4755-9b0b-a64547fc570f`.
+Row type `A1 - All chargeable dwellings` = headline count;
+`E1 - Total band D equivalent dwellings` = published tax base.
+<https://statswales.gov.wales/Catalogue/Local-Government/Finance/Council-Tax>
+
+**Scotland — 2026**
+Scottish Government. *Council tax base: number of chargeable dwellings*, and
+*Band D equivalents in Scotland, 1996-2026*.
+<https://www.gov.scot/publications/council-tax-datasets/>
+
 ## Earnings
 
 **Median gross annual pay, 2025**

@@ -44,6 +44,29 @@ SOURCES: dict[str, str] = {
         "https://services1.arcgis.com/ESMARspQHYMw9BZ9/arcgis/rest/services/"
         "Local_Authority_Districts_December_2024_Boundaries_UK_BUC/FeatureServer/0/query"
     ),
+    # Council Taxbase: dwellings per band, by local authority.
+    "taxbase_england": (
+        "https://assets.publishing.service.gov.uk/media/696f605ff6aa424b452e3359/"
+        "2025_Local_Authority_Drop_Down.xlsx"
+    ),
+    "taxbase_wales": (
+        "https://api.stats.gov.wales/v2/062488e2-3fd6-4755-9b0b-a64547fc570f/"
+        "data?format=csv&lang=en-gb"
+    ),
+    "taxbase_scotland": (
+        "https://www.gov.scot/binaries/content/documents/govscot/publications/"
+        "statistics/2019/04/council-tax-datasets/documents/number-of-chargeable-"
+        "dwellings/chargeable-dwellings--september-2026-data/chargeable-dwellings--"
+        "september-2026-data/govscot:document/"
+        "CTAXBASE+2026+-+Tables+-+Chargeable+Dwellings+%25281%2529.xlsx"
+    ),
+    "taxbase_scotland_band_d": (
+        "https://www.gov.scot/binaries/content/documents/govscot/publications/"
+        "statistics/2019/04/council-tax-datasets/documents/band-d/band-d-"
+        "equivalents-in-scotland-1996-2018-data/band-d-equivalents-in-scotland-"
+        "1996-2018-data/govscot%3Adocument/"
+        "CTAXBASE%2B2026%2B-%2BTables%2B-%2BBand%2BD%2Bequivalents%2B%25281%2529.xlsx"
+    ),
 }
 
 ASHE_ZIP_MEMBER: str = "Home Geography Table 8.7a   Annual pay - Gross 2025.xlsx"

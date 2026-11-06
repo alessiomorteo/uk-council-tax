@@ -59,6 +59,29 @@ of median pay. Councils above the 10 per cent line are the outliers.
 Three lines that sit on top of each other until band E, where Scotland peels
 away. A to D are identical everywhere.
 
+### Dwellings and revenue
+
+![Dwellings, revenue and the tax base](output/figures/revenue.png)
+
+Council Taxbase adds the denominator the charges alone cannot supply: how many
+dwellings sit in each band. Multiply by the charge and you get revenue.
+
+The important finding is that **`dwellings × charge` is not what a council
+collects**. It is gross liability before discounts, premiums and exemptions. The
+published Band D equivalent tax base, multiplied by the Band D charge, is the
+figure a council actually budgets on, and it is consistently lower:
+
+| Nation | Dwellings | Gross | Budgeted | Ratio |
+|---|---|---|---|---|
+| England | 25.8m | £57.3bn | £51.9bn | 0.907 |
+| Scotland | 2.64m | £4.5bn | £4.0bn | 0.896 |
+| Wales | 1.43m | £3.2bn | £3.0bn | 0.941 |
+
+The gap is the value of single-occupancy discounts, second-home premiums and
+exemptions, worth roughly 6 to 11 per cent depending on nation. Both figures are
+carried through the pipeline so the difference stays visible rather than being
+silently baked in.
+
 ### Interactive pages
 
 `make pages` writes two self-contained HTML files to `output/pages/`:
@@ -154,8 +177,9 @@ already present; pass `--force` to refetch.
 | `output/figures/band_levels.png` | 3-panel choropleth: Band A, Band D, Band H multiplier |
 | `output/figures/affordability.png` | choropleth + scatter + ranked bars |
 | `output/figures/multipliers.png` | the ladder plotted, with the nation table |
-| `output/pages/map.html` | interactive map, 5 views, hover detail |
-| `output/pages/table.html` | sortable/filterable 348-row table |
+| `output/figures/revenue.png` | revenue per dwelling, rate against base, nation totals |
+| `output/pages/map.html` | interactive map, 6 views, hover detail |
+| `output/pages/table.html` | sortable/filterable 348-row table, 21 columns |
 
 The HTML pages are **self-contained** — GeoJSON and rows are inlined as JS
 literals, because `fetch()` of a sibling file is blocked by CORS on `file://`.

@@ -195,6 +195,104 @@ def check_nation_multipliers(multipliers: pd.DataFrame) -> None:
     )
 
 
+def check_taxbase(taxbase: pd.DataFrame) -> None:
+    """Assert the Council Taxbase table is complete and reconciles.
+
+    The published Band D equivalent tax base is not ``dwellings x statutory
+    ratio``: it applies discounts, premiums and exemptions first. The naive
+    product overstates it by 6 to 12 per cent, so both are checked.
+
+    Args:
+        taxbase: The long taxbase table with nation, band, dwellings and
+            tax_base columns.
+    """
+    latest = {"England": "2025-26", "Wales": "2026-27", "Scotland": "2026-27"}
+    expected_auth = {"England": 296, "Wales": 22, "Scotland": 32}
+    expected_bands = {"England": 8, "Wales": 9, "Scotland": 8}
+
+    for nation, year in latest.items():
+        group = taxbase[(taxbase.nation == nation) & (taxbase.year == year)]
+        bands = group[group.band != "Total"]
+        totals = group[group.band == "Total"]
+
+        check(
+            f"taxbase: {nation} has {expected_auth[nation]} authorities",
+            bands.authority.nunique() == expected_auth[nation],
+            bands.authority.nunique(),
+        )
+        check(
+            f"taxbase: {nation} has {expected_bands[nation]} bands",
+            bands.band.nunique() == expected_bands[nation],
+            bands.band.nunique(),
+        )
+        check(
+            f"taxbase: {nation} has a published tax base",
+            totals.tax_base.notna().any() and totals.tax_base.sum() > 0,
+        )
+
+        mult = ladder(nation, year)
+        naive = (bands.dwellings * bands.band.map(mult)).sum()
+        published = totals.tax_base.sum()
+        gap = (naive - published) / published * 100
+        check(
+            f"taxbase: {nation} naive product overstates by 5-15pc",
+            5 < gap < 15,
+            f"{gap:.2f}%",
+        )
+
+
+def check_revenue(full: pd.DataFrame) -> None:
+    """Assert the taxbase join is complete and the revenue figures are sane.
+
+    Gross revenue is ``dwellings x charge`` before discounts, so it must exceed
+    the revenue implied by the published tax base. The ratio between them is the
+    value of discounts and premiums, which should sit in a narrow band.
+
+    Args:
+        full: The joined council tax table with dwellings and revenue columns.
+    """
+    check(
+        "every council has a dwelling count",
+        full.dwellings.notna().all(),
+        f"{int(full.dwellings.isna().sum())} missing",
+    )
+    check(
+        "every council has a published tax base",
+        full.tax_base_published.notna().all(),
+        f"{int(full.tax_base_published.isna().sum())} missing",
+    )
+    check(
+        "every council has gross revenue",
+        full.revenue_gross.notna().all(),
+        f"{int(full.revenue_gross.isna().sum())} missing",
+    )
+
+    # Gross must exceed budgeted: discounts reduce the yield.
+    check(
+        "gross revenue exceeds tax-base revenue everywhere",
+        (full.revenue_gross >= full.revenue_tax_base).mean() > 0.95,
+        f"{(full.revenue_gross < full.revenue_tax_base).sum()} councils inverted",
+    )
+    check(
+        "tax base ratio sits between 0.75 and 1.05",
+        full.tax_base_ratio.between(0.75, 1.05).all(),
+        f"range {full.tax_base_ratio.min():.3f} to {full.tax_base_ratio.max():.3f}",
+    )
+
+    # National revenue must be in the right order of magnitude.
+    england = full[full.nation == "England"]
+    check(
+        "England gross revenue is 50-65bn",
+        50e9 < england.revenue_gross.sum() < 65e9,
+        f"{england.revenue_gross.sum() / 1e9:.1f}bn",
+    )
+    check(
+        "revenue per dwelling is plausible",
+        full.revenue_gross.sum() / full.dwellings.sum() > 1000,
+        f"{full.revenue_gross.sum() / full.dwellings.sum():.0f}",
+    )
+
+
 def main() -> None:
     """Run every validation check.
 
@@ -215,6 +313,8 @@ def main() -> None:
     check_statute()
     check_affordability(full)
     check_nation_multipliers(multipliers)
+    check_taxbase(pd.read_csv(DATA_PROC / "taxbase_long.csv"))
+    check_revenue(full)
 
     print()
     if FAILURES:

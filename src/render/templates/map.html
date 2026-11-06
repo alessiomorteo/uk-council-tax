@@ -91,6 +91,7 @@
   <div class="tab" data-m="band_h_ratio">Band H multiplier (× Band D)</div>
   <div class="tab" data-m="band_a">Band A level (£)</div>
   <div class="tab" data-m="pct_income">Affordability (% of pay)</div>
+  <div class="tab" data-m="rev_per_dwelling">Revenue per dwelling (£)</div>
   <div class="tab" data-m="mult_table">Multiplier by nation</div>
 </div>
 
@@ -176,6 +177,13 @@ const SCALES = {
     colors: ["#fdf5f5","#f7dcdc","#eeb5b5","#e08a8a","#cd5c5c","#b03434","#8c1f1f","#661010"],
     fmt: v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0}),
     note: "Band A is 6/9 of Band D in all three nations — the ratio is universal."
+  },
+  rev_per_dwelling: {
+    label: "Gross council tax per dwelling (£)",
+    buckets: [1500,1800,2000,2100,2200,2300,2400,2600],
+    colors: ["#ffffe5","#f7fcb9","#d9f0a3","#addd8e","#78c679","#41ab5d","#238443","#005a32","#003b20"],
+    fmt: v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0}),
+    note: "Dwellings × charge across all bands, divided by dwellings. Gross liability before discounts, so a ceiling rather than the collected figure. Derived here, not published."
   }
 };
 
@@ -255,6 +263,11 @@ function draw(){
         if(pr.median_pay!=null){
           extra += "<br><span style='opacity:.85'>median pay £"+Math.round(pr.median_pay).toLocaleString("en-GB")
                  + " → <b>"+pr.pct_income.toFixed(2)+"%</b> of pay</span>";
+        }
+        if(pr.dwellings!=null){
+          extra += "<br><span style='opacity:.85'>"
+                 + pr.dwellings.toLocaleString("en-GB") + " dwellings · gross "
+                 + "£" + (pr.revenue_gross/1e6).toFixed(1) + "m</span>";
         }
         tip.innerHTML = "<b>"+pr.name+"</b><br>"+sc.label+": <b>"+sc.fmt(pr[current])+"</b>" + extra;
       }

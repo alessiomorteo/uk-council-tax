@@ -71,6 +71,16 @@ def main(force: bool = False) -> None:
     fetch(SOURCES["wales_bands"], DATA_RAW / "wales_bands_1996-2027.csv", force)
     fetch(SOURCES["scotland_bands"], DATA_RAW / "scotland_bands_2026-27.xlsx", force)
 
+    # Council Taxbase: dwellings per band, by local authority.
+    fetch(SOURCES["taxbase_england"], DATA_RAW / "taxbase_england_2025.xlsx", force)
+    fetch(SOURCES["taxbase_wales"], DATA_RAW / "taxbase_wales_1996-2027.csv", force)
+    fetch(SOURCES["taxbase_scotland"], DATA_RAW / "taxbase_scotland_2026.xlsx", force)
+    fetch(
+        SOURCES["taxbase_scotland_band_d"],
+        DATA_RAW / "taxbase_scotland_band_d_2026.xlsx",
+        force,
+    )
+
     ashe_archive = DATA_RAW / "ashe_table8_2025.zip"
     fetch(SOURCES["ashe_earnings"], ashe_archive, force)
     ashe_target = DATA_RAW / "ashe_annual_pay_2025.xlsx"

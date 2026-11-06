@@ -300,6 +300,280 @@ def parse_ashe(path: Path) -> pd.DataFrame:
     return frame[["nation", "name", "code", "median", "mean"]]
 
 
+# ------------------------------------------------------------------ taxbase
+def parse_taxbase_england(path: Path) -> pd.DataFrame:
+    """Parse the England Council Taxbase workbook into a long table.
+
+    The ``Council Taxbase Data`` sheet holds 35 tables side by side, so the
+    header row carries 31 duplicate ``Band A`` labels. Columns are therefore
+    selected by position rather than by name.
+
+    Two blocks are taken:
+
+    - columns 5 to 12, the headline dwelling count per band (Table 1.01)
+    - column 287, the published tax base in Band D equivalents (Table 1.29)
+
+    The published tax base is *not* ``dwellings x statutory ratio``. It applies
+    discounts, premiums and exemptions first, which makes it roughly 6 to 9 per
+    cent lower than the naive product. Both are recorded so the difference is
+    visible rather than silently wrong.
+
+    Args:
+        path: Path to the MHCLG Council Taxbase workbook.
+
+    Returns:
+        One row per authority and band, with the dwelling count, plus a
+        ``total`` band carrying the published tax base.
+    """
+    raw = pd.read_excel(path, sheet_name="Council Taxbase Data", header=None)
+    body = raw.iloc[6:].copy()
+    body.columns = range(len(raw.columns))
+
+    keep = {
+        0: "ecode",
+        1: "ons_code",
+        2: "region",
+        3: "authority",
+        5: "band_a",
+        6: "band_b",
+        7: "band_c",
+        8: "band_d",
+        9: "band_e",
+        10: "band_f",
+        11: "band_g",
+        12: "band_h",
+        13: "total",
+        287: "tax_base",  # Table 1.29, published Band D equivalents
+    }
+    frame = body[list(keep)].rename(columns=keep)
+    frame = frame[frame.ons_code.astype(str).str.match(r"^E\d{8}$")].copy()
+    # Drop the England aggregate row.
+    frame = frame[frame.ons_code != "E92000001"]
+
+    records: list[dict[str, object]] = []
+    for _, row in frame.iterrows():
+        for band in BAND_LETTERS:
+            value = row[f"band_{band.lower()}"]
+            if pd.isna(value):
+                continue
+            records.append(
+                {
+                    "nation": "England",
+                    "authority": str(row["authority"]).strip(),
+                    "ons_code": str(row["ons_code"]).strip(),
+                    "year": "2025-26",
+                    "band": band,
+                    "dwellings": int(value),
+                    "tax_base": None,
+                    "source": "MHCLG Council Taxbase 2025",
+                }
+            )
+        if pd.notna(row["tax_base"]):
+            records.append(
+                {
+                    "nation": "England",
+                    "authority": str(row["authority"]).strip(),
+                    "ons_code": str(row["ons_code"]).strip(),
+                    "year": "2025-26",
+                    "band": "Total",
+                    "dwellings": int(row["total"]) if pd.notna(row["total"]) else None,
+                    "tax_base": float(row["tax_base"]),
+                    "source": "MHCLG Council Taxbase 2025 (Table 1.29)",
+                }
+            )
+    return pd.DataFrame(records)
+
+
+def parse_taxbase_wales(path: Path) -> pd.DataFrame:
+    """Parse the StatsWales Council Taxbase export into a long table.
+
+    Wales publishes 64 different measures per band, not one. Two are taken:
+
+    - ``A1 - All chargeable dwellings``, the headline dwelling count
+    - ``E1 - Total band D equivalent dwellings``, the published tax base
+
+    Only A1 is broken down by band; E1 is published as a per-authority total,
+    so it is recorded on a ``Total`` band row. The remaining 62 measures cover
+    discounts, second homes and empty properties.
+
+    Args:
+        path: Path to the StatsWales taxbase CSV export.
+
+    Returns:
+        One row per authority, year and band, plus a ``Total`` row per
+        authority carrying the published Band D equivalent tax base.
+    """
+    frame = pd.read_csv(path)
+    frame["Row"] = frame["Row"].astype(str)
+
+    records: list[dict[str, object]] = []
+
+    # Headline dwelling counts, broken down by band.
+    a1 = frame[frame["Row"].str.startswith("A1")].copy()
+    a1 = a1[a1["Band"] != "Total"]
+    a1 = a1[~a1["Authority"].astype(str).str.contains("Total", na=False)]
+    for _, row in a1.iterrows():
+        try:
+            value = float(row["Data values"])
+        except (TypeError, ValueError):
+            continue
+        records.append(
+            {
+                "nation": "Wales",
+                "authority": str(row["Authority"]).strip(),
+                "ons_code": "",
+                "year": str(row["Year"]),
+                "band": str(row["Band"]),
+                "dwellings": int(round(value)),
+                "tax_base": None,
+                "source": "StatsWales Council tax dwellings (A1)",
+            }
+        )
+
+    # Published Band D equivalent tax base, per authority.
+    e1 = frame[frame["Row"].str.startswith("E1 -")].copy()
+    e1 = e1[~e1["Authority"].astype(str).str.contains("Total", na=False)]
+    for _, row in e1.iterrows():
+        try:
+            value = float(row["Data values"])
+        except (TypeError, ValueError):
+            continue
+        records.append(
+            {
+                "nation": "Wales",
+                "authority": str(row["Authority"]).strip(),
+                "ons_code": "",
+                "year": str(row["Year"]),
+                "band": "Total",
+                "dwellings": None,
+                "tax_base": value,
+                "source": "StatsWales band D equivalents (E1)",
+            }
+        )
+    return pd.DataFrame(records)
+
+
+def parse_taxbase_scotland(path: Path) -> pd.DataFrame:
+    """Parse the Scottish Government chargeable dwellings workbook.
+
+    The sheet appends two prose rows after the 32 councils, a ``Source:`` line
+    and a ``Note:`` line. Left unfiltered they parse as authorities and inflate
+    the count to 34.
+
+    Scotland publishes Band D equivalents in a separate workbook, so the
+    ``tax_base`` column is left empty here and joined in later.
+
+    Args:
+        path: Path to the CTAXBASE chargeable dwellings workbook.
+
+    Returns:
+        One row per council and band, with the dwelling count.
+
+    Raises:
+        ValueError: If the Band A to H header row cannot be located.
+    """
+    frame = pd.read_excel(path, header=None)
+
+    header_index: int | None = None
+    for index in range(min(15, len(frame))):
+        values = [str(cell) for cell in frame.iloc[index, :10] if pd.notna(cell)]
+        if sum(1 for band in BAND_LETTERS if f"Band {band}" in values) >= 6:
+            header_index = index
+            break
+    if header_index is None:
+        raise ValueError("Scotland taxbase: could not locate the band header row")
+
+    records: list[dict[str, object]] = []
+    for index in range(header_index + 1, len(frame)):
+        name = frame.iloc[index, 0]
+        if not isinstance(name, str):
+            continue
+        name = name.strip()
+        if not name or name.lower().startswith(
+                ("scotland", "source", "note", "ratio", "valuation")):
+            continue
+        try:
+            values = [float(frame.iloc[index, column]) for column in range(1, 9)]
+        except (TypeError, ValueError):
+            continue
+        for band, value in zip(BAND_LETTERS, values):
+            records.append(
+                {
+                    "nation": "Scotland",
+                    "authority": name,
+                    "ons_code": "",
+                    "year": "2026-27",
+                    "band": band,
+                    "dwellings": int(round(value)),
+                    "tax_base": None,
+                    "source": "Scottish Government CTAXBASE 2026",
+                }
+            )
+    return pd.DataFrame(records)
+
+
+def parse_taxbase_scotland_band_d(path: Path) -> pd.DataFrame:
+    """Parse the Scottish Band D equivalents workbook.
+
+    The sheet is a wide year-by-column table: row 4 carries the years, row 5 the
+    Scotland total, rows 6 onward one council each. The latest year column is
+    taken as the published tax base.
+
+    Args:
+        path: Path to the CTAXBASE Band D equivalents workbook.
+
+    Returns:
+        One row per council with the published Band D equivalent tax base.
+
+    Raises:
+        ValueError: If the year header row cannot be located.
+    """
+    frame = pd.read_excel(path, sheet_name="Band D Equivalents", header=None)
+
+    year_row: int | None = None
+    for index in range(min(10, len(frame))):
+        years = pd.to_numeric(frame.iloc[index, 1:], errors="coerce")
+        if years.notna().sum() >= 10:
+            year_row = index
+            break
+    if year_row is None:
+        raise ValueError("Scotland Band D equivalents: could not locate year row")
+
+    years = pd.to_numeric(frame.iloc[year_row, 1:], errors="coerce")
+    latest_col = 1 + int(years.notna().values.nonzero()[0][-1])
+    latest_year = int(years.dropna().iloc[-1])
+
+    records: list[dict[str, object]] = []
+    for index in range(year_row + 1, len(frame)):
+        name = frame.iloc[index, 0]
+        if not isinstance(name, str):
+            continue
+        name = name.strip()
+        if not name or name.lower().startswith(("scotland", "source", "note")):
+            continue
+        # Footnotes and revision notes sit in the name column after the councils
+        # and are long prose rather than authority names.
+        if len(name) > 60 or name[0].islower():
+            continue
+        try:
+            value = float(frame.iloc[index, latest_col])
+        except (TypeError, ValueError):
+            continue
+        records.append(
+            {
+                "nation": "Scotland",
+                "authority": name,
+                "ons_code": "",
+                "year": f"{latest_year}-{str(latest_year + 1)[-2:]}",
+                "band": "Total",
+                "dwellings": None,
+                "tax_base": value,
+                "source": "Scottish Government Band D equivalents 2026",
+            }
+        )
+    return pd.DataFrame(records)
+
+
 def main() -> None:
     """Parse every raw source and write the processed CSVs."""
     print("Parsing raw -> processed")
@@ -323,6 +597,19 @@ def main() -> None:
     ashe = parse_ashe(DATA_RAW / "ashe_annual_pay_2025.xlsx")
     ashe.to_csv(DATA_PROC / "ashe_earnings_2025.csv", index=False)
     print(f"  ashe_earnings_2025.csv         {len(ashe):>6,} rows")
+
+    taxbase_england = parse_taxbase_england(DATA_RAW / "taxbase_england_2025.xlsx")
+    taxbase_wales = parse_taxbase_wales(DATA_RAW / "taxbase_wales_1996-2027.csv")
+    taxbase_scotland = parse_taxbase_scotland(DATA_RAW / "taxbase_scotland_2026.xlsx")
+    taxbase_scotland_bd = parse_taxbase_scotland_band_d(
+        DATA_RAW / "taxbase_scotland_band_d_2026.xlsx"
+    )
+    taxbase = pd.concat(
+        [taxbase_england, taxbase_wales, taxbase_scotland, taxbase_scotland_bd],
+        ignore_index=True,
+    )
+    taxbase.to_csv(DATA_PROC / "taxbase_long.csv", index=False)
+    print(f"  taxbase_long.csv               {len(taxbase):>6,} rows")
 
     combined = pd.concat([england, wales, scotland], ignore_index=True)
     combined.to_csv(DATA_PROC / "uk_bands_2026-27.csv", index=False)

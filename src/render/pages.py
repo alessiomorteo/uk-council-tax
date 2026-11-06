@@ -41,6 +41,10 @@ TABLE_COLUMNS: list[str] = [
     "band_h_pct_pay",
     "mult_e",
     "mult_h",
+    "dwellings",
+    "revenue_gross",
+    "revenue_tax_base",
+    "tax_base_published",
 ]
 
 
@@ -118,10 +122,42 @@ def slim_geojson(bands: pd.DataFrame, affordable: pd.DataFrame) -> dict[str, Any
                 {
                     "median_pay": round(float(afford_row["median"]), 0),
                     "pct_income": round(float(afford_row.band_d_pct_pay), 2),
+                    "dwellings": (
+                        int(afford_row.dwellings)
+                        if pd.notna(afford_row.dwellings) else None
+                    ),
+                    "revenue_gross": (
+                        round(float(afford_row.revenue_gross), 0)
+                        if pd.notna(afford_row.revenue_gross) else None
+                    ),
+                    "tax_base_published": (
+                        round(float(afford_row.tax_base_published), 0)
+                        if pd.notna(afford_row.tax_base_published) else None
+                    ),
+                    "rev_per_dwelling": (
+                        round(
+                            float(afford_row.revenue_gross)
+                            / float(afford_row.dwellings),
+                            0,
+                        )
+                        if pd.notna(afford_row.dwellings)
+                        and pd.notna(afford_row.revenue_gross)
+                        and float(afford_row.dwellings) > 0
+                        else None
+                    ),
                 }
             )
         else:
-            properties.update({"median_pay": None, "pct_income": None})
+            properties.update(
+                {
+                    "median_pay": None,
+                    "pct_income": None,
+                    "dwellings": None,
+                    "revenue_gross": None,
+                    "tax_base_published": None,
+                    "rev_per_dwelling": None,
+                }
+            )
 
         geometry = feature["geometry"]
         geometry["coordinates"] = round_coordinates(geometry["coordinates"])
@@ -168,6 +204,10 @@ def build_table(affordable: pd.DataFrame) -> None:
     """
     rows = affordable[TABLE_COLUMNS].copy()
     rows = rows.rename(columns={"LAD24CD": "ons_code", "median": "median_pay"})
+    rows["rev_per_dwelling"] = (
+        rows.revenue_gross / rows.dwellings.replace(0, pd.NA)
+    ).round(0)
+    rows["tax_base_published"] = rows.tax_base_published.round(0)
     rows = rows.sort_values(["nation", "authority"]).round(2)
 
     template = (TEMPLATES / "table.html").read_text()

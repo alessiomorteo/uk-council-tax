@@ -589,6 +589,168 @@ def fig_multipliers() -> None:
     print(f"  {output.name}")
 
 
+def fig_revenue(geo: dict[str, Any], frame: pd.DataFrame) -> None:
+    """Render the three-panel council taxbase and revenue figure.
+
+    Panels: revenue per dwelling on a map, dwellings against Band D charge as a
+    scatter sized by gross revenue, and a nation summary of the gap between the
+    gross product and the budgeted tax base.
+
+    Args:
+        geo: The boundary FeatureCollection with revenue attached.
+        frame: Processed council data with dwellings and revenue columns.
+    """
+    figure = plt.figure(figsize=(19, 9.6), facecolor="white")
+    grid = figure.add_gridspec(1, 3, width_ratios=[1, 1, 1.15], wspace=0.06)
+
+    # Panel 1: revenue per dwelling on the map.
+    axis_map = figure.add_subplot(grid[0, 0])
+    frame = frame.copy()
+    frame["rev_per_dwelling"] = frame.revenue_gross / frame.dwellings
+    values = frame.rev_per_dwelling.dropna().tolist()
+    colour_map = plt.get_cmap("YlGnBu")
+    draw_choropleth(
+        axis_map,
+        geo,
+        "rev_per_dwelling",
+        colour_map,
+        min(values),
+        max(values),
+        "Average council tax per dwelling",
+    )
+    scalar = plt.cm.ScalarMappable(
+        cmap=colour_map, norm=mcolors.Normalize(min(values), max(values))
+    )
+    colourbar = figure.colorbar(
+        scalar, ax=axis_map, orientation="horizontal", fraction=0.045, pad=0.02
+    )
+    colourbar.set_label("Gross council tax per dwelling (£)", fontsize=9)
+
+    # Panel 2: taxbase size against the Band D charge.
+    axis_scatter = figure.add_subplot(grid[0, 1])
+    for nation, group in frame.groupby("nation"):
+        axis_scatter.scatter(
+            group.dwellings / 1000,
+            group.band_d,
+            s=np.sqrt(group.revenue_gross / 1e6) * 3.2,
+            alpha=0.62,
+            color=NATION_COLOUR[nation],
+            label=nation,
+            edgecolor="white",
+            linewidth=0.4,
+        )
+    axis_scatter.set_xscale("log")
+    axis_scatter.set_xlabel("Dwellings in the area (000s, log scale)", fontsize=9.5)
+    axis_scatter.set_ylabel("Band D council tax (£)", fontsize=9.5)
+    axis_scatter.set_title(
+        "Rate against base", fontsize=13, fontweight="bold", loc="left", pad=9
+    )
+    axis_scatter.text(
+        0.5,
+        1.005,
+        "Bubble area is gross revenue. Small bases with high charges sit top left.",
+        transform=axis_scatter.transAxes,
+        fontsize=8.4,
+        color="#666",
+        ha="center",
+        va="bottom",
+    )
+    axis_scatter.legend(frameon=False, fontsize=9, loc="lower right")
+    axis_scatter.grid(alpha=0.18, linewidth=0.6)
+    axis_scatter.set_axisbelow(True)
+
+    # Panel 3: the nation summary.
+    axis_table = figure.add_subplot(grid[0, 2])
+    axis_table.axis("off")
+
+    rows = []
+    for nation in ["England", "Scotland", "Wales"]:
+        group = frame[frame.nation == nation]
+        rows.append([
+            nation,
+            f"{group.authority.nunique()}",
+            f"{group.dwellings.sum() / 1e6:.2f}m",
+            f"£{group.revenue_gross.sum() / 1e9:.1f}bn",
+            f"£{group.revenue_tax_base.sum() / 1e9:.1f}bn",
+            f"{group.tax_base_ratio.mean():.3f}",
+        ])
+    total = frame
+    rows.append([
+        "All",
+        f"{total.authority.nunique()}",
+        f"{total.dwellings.sum() / 1e6:.2f}m",
+        f"£{total.revenue_gross.sum() / 1e9:.1f}bn",
+        f"£{total.revenue_tax_base.sum() / 1e9:.1f}bn",
+        f"{total.tax_base_ratio.mean():.3f}",
+    ])
+
+    table = axis_table.table(
+        cellText=rows,
+        colLabels=[
+            "Nation", "Councils", "Dwellings", "Gross", "Tax base", "Ratio"
+        ],
+        cellLoc="right",
+        loc="upper center",
+        bbox=[0.0, 0.42, 1.0, 0.44],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9.5)
+    for (row, col), cell in table.get_celld().items():
+        cell.set_edgecolor("#e2e2e2")
+        if row == 0:
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#f4f4f4")
+        if row == len(rows):
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#fafafa")
+
+    axis_table.text(
+        0.0,
+        0.33,
+        "Gross is dwellings x charge before discounts. Tax base is the published\n"
+        "Band D equivalent times the Band D charge, which is what a council\n"
+        "actually budgets on. The ratio is the second over the first, so it\n"
+        "measures how much discounts, premiums and exemptions are worth.",
+        transform=axis_table.transAxes,
+        fontsize=8.6,
+        color="#555",
+        va="top",
+        linespacing=1.5,
+    )
+    axis_table.set_title(
+        "What the taxbase is worth",
+        fontsize=13,
+        fontweight="bold",
+        loc="left",
+        pad=12,
+    )
+
+    figure.suptitle(
+        "Council Tax Comparison Across the UK: dwellings and revenue",
+        fontsize=16,
+        fontweight="bold",
+        x=0.012,
+        ha="left",
+        y=0.985,
+    )
+    figure.text(
+        0.012,
+        0.945,
+        "Dwelling counts from each nation's Council Taxbase return. Revenue is "
+        "derived here, not published. England and Scotland have eight bands; "
+        "Wales has nine.",
+        fontsize=9.3,
+        color="#555",
+        ha="left",
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.925])
+
+    output = OUT_FIG / "revenue.png"
+    plt.savefig(output, dpi=155, facecolor="white", bbox_inches="tight")
+    plt.close(figure)
+    print(f"  {output.name}")
+
+
 def main() -> None:
     """Render every static figure."""
     print("Rendering figures ->", OUT_FIG)
@@ -598,17 +760,34 @@ def main() -> None:
     attach_values(
         geo,
         frame,
-        ["band_a", "band_d", "band_h", "mult_h", "band_d_pct_pay", "median"],
+        [
+            "band_a",
+            "band_d",
+            "band_h",
+            "mult_h",
+            "band_d_pct_pay",
+            "median",
+            "dwellings",
+            "revenue_gross",
+            "revenue_tax_base",
+            "tax_base_ratio",
+        ],
     )
 
     # The affordability renderer expects a shorter property name.
     for feature in geo["features"]:
         properties = feature["properties"]
         properties["pct_pay"] = properties.pop("band_d_pct_pay", None)
+        gross = properties.get("revenue_gross")
+        dwellings = properties.get("dwellings")
+        properties["rev_per_dwelling"] = (
+            gross / dwellings if gross and dwellings else None
+        )
 
     fig_band_levels(geo)
     fig_affordability(geo, frame)
     fig_multipliers()
+    fig_revenue(geo, frame)
 
 
 if __name__ == "__main__":

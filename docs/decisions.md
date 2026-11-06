@@ -83,3 +83,39 @@ City of London and Isles of Scilly have no ASHE estimate. Their council tax is
 real and should still appear on band maps; their affordability is genuinely
 unknown and should not be invented. The map shows them grey in the affordability
 view only.
+
+---
+
+## Carry both gross revenue and the published tax base
+
+**Decision:** compute `dwellings × charge` as `revenue_gross`, and separately
+carry the published Band D equivalent tax base as `tax_base_published`, deriving
+`revenue_tax_base = tax_base_published × band_d`.
+
+**Why:** the naive product is wrong as a revenue estimate, and wrong in a way
+that looks plausible. It overstates by 6 to 11 per cent because it ignores
+single-occupancy discounts, second-home premiums and exemptions. England's
+published tax base is 21.73m Band D equivalents against a naive 23.96m — a
+9.3 per cent gap that no arithmetic on the charges alone would reveal.
+
+**Rejected:** using `dwellings × charge` as "revenue". It reads as a revenue
+figure but is a liability ceiling. Publishing it unlabelled would be a silent
+error rather than a visible approximation.
+
+Both are carried so the gap is auditable. `tax_base_ratio` is the second over
+the first, and the validation asserts it stays between 0.75 and 1.05 for every
+council.
+
+## Join taxbase on code in England, on name elsewhere
+
+**Decision:** England joins on ONS code with `ONS_RECODE` applied; Wales and
+Scotland join on `norm_name(authority)`.
+
+**Why:** the England workbook carries ONS codes, so the code is the safe key. The
+Welsh and Scottish taxbase files carry no code at all — only names — so there is
+no choice. `norm_name` already resolves the punctuation variants (`Argyll & Bute`
+vs `Argyll and Bute`) and gives 32 of 32 for Scotland.
+
+**Rejected:** name matching in England. It fails on exactly the councils the
+recode exists for: Barnsley and Sheffield. Using the code plus recode gives
+348 of 348.
