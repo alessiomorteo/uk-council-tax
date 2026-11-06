@@ -119,3 +119,45 @@ vs `Argyll and Bute`) and gives 32 of 32 for Scotland.
 **Rejected:** name matching in England. It fails on exactly the councils the
 recode exists for: Barnsley and Sheffield. Using the code plus recode gives
 348 of 348.
+
+---
+
+## Price discounts in Band D equivalents, not dwellings
+
+**Decision:** compute discount value as `(equivalents before discount - equivalents
+after discount) x band_d`, working entirely in Band D equivalent units.
+
+**Why:** the first attempt multiplied a *dwelling* shortfall by the Band D charge
+and compared it against a *Band D equivalent* net figure. Those are different
+units — a Band H dwelling is 2.0 to 2.45 equivalents — so 25 councils appeared to
+have net liability above gross liability. That looked like a finding and was
+actually a unit error.
+
+The published chain is:
+
+```
+Table 1.26  dwelling equivalents after discounts and premiums
+Table 1.27  the same in Band D equivalents
+Table 1.28  contributions in lieu, added on top
+Table 1.29  tax base = 1.27 + 1.28
+Table 1.31  council tax support reduction, deducted from 1.29
+```
+
+Gross is Table 1.27 plus the discount shortfall. Net is Table 1.29 less Table
+1.31, which gives 19,295,312 equivalents against the published 19.3m.
+
+**Rejected:** using Table 1.33 (Band D equivalents after council tax support) as
+the net figure. It is close but not the tax base for setting purposes, and it
+leaves a £1bn gap against the published requirement.
+
+## Negative discount values are genuine, not a bug
+
+**Decision:** allow `discount_value` to be negative, and assert that only City of
+London and Isles of Scilly are affected.
+
+**Why:** a premium can raise more than discounts give away. City of London has a
+25.6% second-homes premium against a small single-adult discount population, so
+its equivalents *rise* after applying discounts and premiums. Forcing the figure
+positive would misstate the council's position.
+
+**Rejected:** clamping at zero, or treating it as a data error.

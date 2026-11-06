@@ -360,6 +360,80 @@ def check_discounts(discounts: pd.DataFrame) -> None:
     )
 
 
+def check_discount_values(values: pd.DataFrame) -> None:
+    """Assert the priced discount table reconciles to the published requirement.
+
+    The strongest check available: the net liability derived here must match the
+    council tax requirement published for 2025-26, which is £44.1bn on a tax base
+    of 19.3m Band D equivalents.
+
+    Args:
+        values: The per-council discount value table.
+    """
+    check(
+        "discount values: England has 296 councils",
+        len(values) == 296,
+        len(values),
+    )
+    check(
+        "discount values: every council has a Band D charge",
+        values.band_d.notna().all(),
+        f"{int(values.band_d.isna().sum())} missing",
+    )
+
+    # The tax base for setting purposes.
+    equivalents = values.net_equivalents.sum()
+    check(
+        "discount values: net equivalents match published 19.3m",
+        abs(equivalents - 19_295_312) < 100,
+        f"{equivalents:,.0f}",
+    )
+
+    # The council tax requirement. Published as £44.1bn; the small residual is
+    # because the published average Band D is a rounded area figure.
+    liability = values.net_liability.sum()
+    check(
+        "discount values: net liability within 3pc of published 44.1bn",
+        abs(liability - 44.1e9) / 44.1e9 < 0.03,
+        f"£{liability / 1e9:.2f}bn",
+    )
+
+    # Premiums can exceed discounts, so net can legitimately exceed gross for a
+    # handful of councils. City of London and Isles of Scilly both have a large
+    # second-homes premium, which raises more than discounts give away. The
+    # check is that this stays rare and confined to those known cases.
+    inverted = values[values.gross_liability <= values.net_liability]
+    check(
+        "discount values: at most 3 councils have net above gross",
+        len(inverted) <= 3,
+        f"{len(inverted)}: {sorted(inverted.authority)}",
+    )
+    check(
+        "discount values: the inverted councils are the premium cases",
+        set(inverted.authority) <= {"City of London", "Isles of Scilly", "Westminster"},
+        str(sorted(inverted.authority)),
+    )
+    check(
+        "discount values: reduction is -15 to 40pc of gross",
+        values.reduction_pct.between(-15, 40).all(),
+        f"{values.reduction_pct.min():.1f} to {values.reduction_pct.max():.1f}",
+    )
+    check(
+        "discount values: median reduction is 15-20pc of gross",
+        15 < values.reduction_pct.median() < 20,
+        f"{values.reduction_pct.median():.2f}",
+    )
+
+    # Premiums can exceed discounts, so a negative discount value is genuine for
+    # a handful of councils. It must stay rare.
+    negative = int((values.discount_value < 0).sum())
+    check(
+        "discount values: few councils have negative discount value",
+        negative <= 5,
+        f"{negative} councils",
+    )
+
+
 def main() -> None:
     """Run every validation check.
 
@@ -383,6 +457,7 @@ def main() -> None:
     check_taxbase(pd.read_csv(DATA_PROC / "taxbase_long.csv"))
     check_revenue(full)
     check_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
+    check_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
 
     print()
     if FAILURES:

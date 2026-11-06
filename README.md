@@ -82,6 +82,30 @@ exemptions, worth roughly 6 to 11 per cent depending on nation. Both figures are
 carried through the pipeline so the difference stays visible rather than being
 silently baked in.
 
+### What the discounts are worth
+
+![The value of discounts and council tax support](output/figures/discount_values.png)
+
+The taxbase workbook publishes dwelling-equivalents, not money. Money is
+recoverable because a Band D equivalent is by definition one Band D charge, so
+the shortfall at each stage can be priced at each council's own charge:
+
+| England, 2025-26 | Value | Share of gross |
+|---|---|---|
+| Gross liability | £53.8bn | 100% |
+| less discounts and premiums | −£4.3bn | 8.0% |
+| less council tax support | −£5.6bn | 10.4% |
+| **Net liability** | **£43.9bn** | **81.6%** |
+
+That net figure is a hard check rather than an assertion: the published council
+tax requirement for 2025-26 is **£44.1bn** on a tax base of **19.3m** Band D
+equivalents, and the derived figures are 19,295,312 equivalents and £43.9bn.
+
+The reduction ranges from **35.9% in South Tyneside to under 10% in parts of the
+Home Counties**. Liverpool, Middlesbrough, Hartlepool and Knowsley all sit above
+34%. In City of London and Isles of Scilly the figure is *negative*: the
+second-homes premium raises more than discounts give away.
+
 ### Interactive pages
 
 `make pages` writes two self-contained HTML files to `output/pages/`:
@@ -178,6 +202,8 @@ already present; pass `--force` to refetch.
 | `output/figures/affordability.png` | choropleth + scatter + ranked bars |
 | `output/figures/multipliers.png` | the ladder plotted, with the nation table |
 | `output/figures/revenue.png` | revenue per dwelling, rate against base, nation totals |
+| `output/figures/discounts.png` | exempt rate map, rate distributions, extremes |
+| `output/figures/discount_values.png` | discounts priced in pounds, ranked, waterfall |
 | `output/pages/map.html` | interactive map, 6 views, hover detail |
 | `output/pages/table.html` | sortable/filterable 348-row table, 21 columns |
 

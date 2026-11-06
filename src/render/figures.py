@@ -909,6 +909,164 @@ def fig_discounts(frame: pd.DataFrame) -> None:
     print(f"  {output.name}")
 
 
+def fig_discount_values(values: pd.DataFrame) -> None:
+    """Render the priced discounts figure.
+
+    Panels: the value of discounts per dwelling on a map, the reduction as a
+    share of gross liability ranked, and the England-level waterfall.
+
+    Args:
+        values: The per-council discount value table.
+    """
+    figure = plt.figure(figsize=(19, 9.6), facecolor="white")
+    grid = figure.add_gridspec(1, 3, width_ratios=[1.05, 1.15, 0.95], wspace=0.2)
+
+    # Panel 1: reduction as a share of gross, per council.
+    axis_map = figure.add_subplot(grid[0, 0])
+    geo = load_geo()
+    lookup = {row.authority: row for _, row in values.iterrows()}
+    for feature in geo["features"]:
+        name = feature["properties"].get("LAD24NM") or feature["properties"].get("name")
+        row = lookup.get(name)
+        feature["properties"]["reduction_pct"] = (
+            float(row["reduction_pct"]) if row is not None else None
+        )
+
+    plotted = values["reduction_pct"].dropna().tolist()
+    colour_map = plt.get_cmap("PuRd")
+    draw_choropleth(
+        axis_map,
+        geo,
+        "reduction_pct",
+        colour_map,
+        max(0, min(plotted)),
+        max(plotted),
+        "Discounts and support as a share of gross liability",
+    )
+    scalar = plt.cm.ScalarMappable(
+        cmap=colour_map,
+        norm=mcolors.Normalize(max(0, min(plotted)), max(plotted)),
+    )
+    colourbar = figure.colorbar(
+        scalar, ax=axis_map, orientation="horizontal", fraction=0.045, pad=0.02
+    )
+    colourbar.set_label("Reduction (per cent of gross liability)", fontsize=9)
+
+    # Panel 2: ranked reduction, showing the spread.
+    axis_rank = figure.add_subplot(grid[0, 1])
+    ordered = values.sort_values("reduction_pct").reset_index(drop=True)
+    colours = [
+        "#b03434" if value < 0 else "#2d63a0" for value in ordered["reduction_pct"]
+    ]
+    axis_rank.bar(
+        range(len(ordered)),
+        ordered["reduction_pct"],
+        color=colours,
+        width=1.0,
+        linewidth=0,
+    )
+    axis_rank.axhline(0, color="#333", linewidth=0.9)
+    axis_rank.set_xlabel("Councils, ranked", fontsize=9.5)
+    axis_rank.set_ylabel("Reduction as a share of gross (%)", fontsize=9.5)
+    axis_rank.set_title(
+        "Every council, ranked", fontsize=13, fontweight="bold", loc="left", pad=9
+    )
+    axis_rank.text(
+        0.5, 1.005,
+        "Red bars raise more from premiums than they give away in discounts.",
+        transform=axis_rank.transAxes, fontsize=8.4, color="#666",
+        ha="center", va="bottom",
+    )
+    axis_rank.grid(alpha=0.18, linewidth=0.6, axis="y")
+    axis_rank.set_axisbelow(True)
+
+    # Annotate the extremes.
+    for index, column, offset in [
+        (0, "reduction_pct", 8),
+        (len(ordered) - 1, "reduction_pct", 8),
+    ]:
+        row = ordered.iloc[index]
+        axis_rank.annotate(
+            f"{row['authority']}\n{row[column]:.1f}%",
+            (index, row[column]),
+            fontsize=7.6,
+            color="#333",
+            ha="left" if index == 0 else "right",
+            va="bottom" if row[column] >= 0 else "top",
+            xytext=(offset, 0),
+            textcoords="offset points",
+        )
+
+    # Panel 3: the England waterfall.
+    axis_flow = figure.add_subplot(grid[0, 2])
+    axis_flow.axis("off")
+
+    gross = values["gross_liability"].sum()
+    discount = values["discount_value"].sum()
+    cts = values["cts_value"].sum()
+    net = values["net_liability"].sum()
+
+    rows = [
+        ["Gross liability", f"£{gross / 1e9:.1f}bn", ""],
+        ["less discounts and premiums", f"-£{discount / 1e9:.1f}bn",
+         f"{discount / gross * 100:.1f}%"],
+        ["less council tax support", f"-£{cts / 1e9:.1f}bn",
+         f"{cts / gross * 100:.1f}%"],
+        ["Net liability", f"£{net / 1e9:.1f}bn",
+         f"{net / gross * 100:.1f}%"],
+    ]
+    table = axis_flow.table(
+        cellText=rows,
+        colLabels=["England, 2025-26", "Value", "Share"],
+        cellLoc="right",
+        loc="upper center",
+        bbox=[0.0, 0.46, 1.0, 0.36],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9.4)
+    for (row_index, _), cell in table.get_celld().items():
+        cell.set_edgecolor("#e2e2e2")
+        if row_index == 0:
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#f4f4f4")
+        if row_index in (1, 4):
+            cell.set_text_props(fontweight="bold")
+
+    axis_flow.text(
+        0.0, 0.40,
+        "Net liability is the tax base for setting purposes at the Band D\n"
+        "charge. It reconciles to the published council tax requirement of\n"
+        "£44.1bn on 19.3m Band D equivalents, which is the check that the\n"
+        "chain is read in the right order.\n\n"
+        "Values are derived here, not published: the taxbase workbook gives\n"
+        "dwelling-equivalents, and money is those equivalents priced at each\n"
+        "council's own Band D charge.",
+        transform=axis_flow.transAxes, fontsize=8.6, color="#555",
+        va="top", linespacing=1.55,
+    )
+    axis_flow.set_title(
+        "What the discounts are worth", fontsize=13, fontweight="bold",
+        loc="left", pad=12,
+    )
+
+    figure.suptitle(
+        "Council Tax Comparison Across the UK: the value of discounts",
+        fontsize=16, fontweight="bold", x=0.012, ha="left", y=0.985,
+    )
+    figure.text(
+        0.012, 0.945,
+        "England only: Wales publishes counts but not dwelling-equivalents, "
+        "and Scotland publishes neither at council level.",
+        fontsize=9.3, color="#555", ha="left",
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.925])
+
+    output = OUT_FIG / "discount_values.png"
+    plt.savefig(output, dpi=155, facecolor="white", bbox_inches="tight")
+    plt.close(figure)
+    print(f"  {output.name}")
+
+
 def main() -> None:
     """Render every static figure."""
     print("Rendering figures ->", OUT_FIG)
@@ -947,6 +1105,7 @@ def main() -> None:
     fig_multipliers()
     fig_revenue(geo, frame)
     fig_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
+    fig_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
 
 
 if __name__ == "__main__":

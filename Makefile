@@ -18,6 +18,7 @@ join:
 
 discounts:
 	$(PY) src/build/discounts.py
+	$(PY) src/build/discount_values.py
 
 figures:
 	$(PY) src/render/figures.py
