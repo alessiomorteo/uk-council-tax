@@ -1,0 +1,155 @@
+"""Publish the built pages into a GitHub Pages site.
+
+GitHub Pages serves from the repository root or a ``docs`` directory on the
+configured branch. The pipeline writes to ``output/pages``, which is ignored by
+git, so this module copies the built pages into ``docs/`` alongside a small
+landing page and the figures.
+
+Run ``make site`` after ``make pages``. The ``site`` target is part of ``make
+all`` so the published copy never drifts from the generated one.
+"""
+
+import shutil
+import sys
+import warnings
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from config import OUT_FIG, OUT_PAGES, ROOT  # noqa: E402
+
+warnings.filterwarnings("ignore")
+
+SITE_DIR = ROOT / "docs" / "site"
+
+LANDING = """<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Council Tax Comparison Across the UK</title>
+<style>
+  :root {{ --ink:#1a1a1a; --muted:#666; --line:#e5e5e5; --accent:#2d63a0; }}
+  * {{ box-sizing:border-box; }}
+  body {{ margin:0; padding:40px 24px; font-family:-apple-system,BlinkMacSystemFont,
+         "Segoe UI",sans-serif; color:var(--ink); background:#fafafa; }}
+  .wrap {{ max-width:820px; margin:0 auto; }}
+  h1 {{ font-size:28px; margin:0 0 6px; letter-spacing:-.02em; }}
+  .sub {{ color:var(--muted); font-size:14.5px; margin-bottom:32px; line-height:1.6; }}
+  .cards {{ display:flex; gap:14px; flex-wrap:wrap; margin-bottom:34px; }}
+  a.card {{ flex:1; min-width:240px; display:block; text-decoration:none; color:inherit;
+           background:#fff; border-radius:10px; padding:20px 22px;
+           box-shadow:0 1px 4px rgba(0,0,0,.09); border-left:4px solid var(--accent); }}
+  a.card:hover {{ box-shadow:0 3px 12px rgba(0,0,0,.14); }}
+  a.card h2 {{ font-size:16px; margin:0 0 6px; }}
+  a.card p {{ margin:0; font-size:13px; color:var(--muted); line-height:1.55; }}
+  figure {{ margin:0 0 30px; }}
+  figure img {{ width:100%; border-radius:10px; box-shadow:0 1px 4px rgba(0,0,0,.09); }}
+  figcaption {{ font-size:12.5px; color:var(--muted); margin-top:8px; line-height:1.55; }}
+  h3 {{ font-size:15px; margin:30px 0 10px; }}
+  footer {{ margin-top:34px; padding-top:16px; border-top:2px solid var(--line);
+           font-size:12px; color:var(--muted); line-height:1.7; }}
+  footer a {{ color:var(--accent); }}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Council Tax Comparison Across the UK</h1>
+  <div class="sub">
+    Council tax by band for all 350 local authorities in Great Britain, aligned
+    across England, Wales and Scotland, with affordability measured against local
+    earnings. Data for 2026-27; earnings from ASHE 2025.
+  </div>
+
+  <div class="cards">
+    <a class="card" href="map.html">
+      <h2>Interactive map</h2>
+      <p>Choropleth with five views: Band D, Band A, the Band H multiplier,
+         affordability, and the multiplier by nation. Hover any council.</p>
+    </a>
+    <a class="card" href="table.html">
+      <h2>Data table</h2>
+      <p>All 348 councils with every band, median pay and affordability.
+         Sort any column, filter by nation or council name.</p>
+    </a>
+  </div>
+
+  <h3>Band levels and the multiplier</h3>
+  <figure>
+    <img src="figures/band_levels.png"
+         alt="Band A, Band D and the Band H multiplier across the UK">
+    <figcaption>
+      Band A and Band D are directly comparable across nations. The Band H panel
+      is binary by design: 318 councils sit at 2.000 times Band D and the 32
+      Scottish councils at 2.450, with nothing in between.
+    </figcaption>
+  </figure>
+
+  <h3>Affordability</h3>
+  <figure>
+    <img src="figures/affordability.png"
+         alt="Band D council tax against local earnings">
+    <figcaption>
+      The bill against the pay packet, with iso-burden lines at 4, 6, 8 and 10
+      per cent of median pay. Band D ranges from 2.10 per cent of median pay in
+      Wandsworth to 10.38 per cent in Nottingham.
+    </figcaption>
+  </figure>
+
+  <h3>The band ladder by nation</h3>
+  <figure>
+    <img src="figures/multipliers.png"
+         alt="The multiplier ladder for each nation">
+    <figcaption>
+      Three lines that sit on top of each other until band E, where Scotland
+      peels away. Bands A to D are identical everywhere. Scotland changed its
+      E to H multipliers on 1 April 2017 under SSI 2016/368.
+    </figcaption>
+  </figure>
+
+  <footer>
+    Built from Open Government Licence v3.0 material published by MHCLG, the
+    Welsh Government, the Scottish Government, the Office for National
+    Statistics and the Valuation Office Agency. Contains OS data
+    &copy; Crown copyright and database right 2025.
+    Source code and methodology at
+    <a href="https://github.com/alessiomorteo/uk-council-tax">github.com/alessiomorteo/uk-council-tax</a>.
+  </footer>
+
+</div>
+</body>
+</html>
+"""
+
+
+def main() -> None:
+    """Copy the built pages and figures into the published site directory."""
+    print("Publishing site ->", SITE_DIR)
+
+    if not (OUT_PAGES / "map.html").exists():
+        raise SystemExit("output/pages is empty; run `make pages` first")
+
+    SITE_DIR.mkdir(parents=True, exist_ok=True)
+
+    for name in ("map.html", "table.html"):
+        shutil.copy2(OUT_PAGES / name, SITE_DIR / name)
+        size = (SITE_DIR / name).stat().st_size
+        print(f"  {name:12s} {size:,} bytes")
+
+    figures_dir = SITE_DIR / "figures"
+    figures_dir.mkdir(exist_ok=True)
+    for figure in sorted(OUT_FIG.glob("*.png")):
+        shutil.copy2(figure, figures_dir / figure.name)
+        print(f"  figures/{figure.name}")
+
+    (SITE_DIR / "index.html").write_text(LANDING)
+    print(f"  index.html   {(SITE_DIR / 'index.html').stat().st_size:,} bytes")
+
+    # GitHub Pages runs Jekyll by default, which ignores files beginning with an
+    # underscore and can rewrite paths. An empty .nojekyll disables it.
+    (SITE_DIR / ".nojekyll").write_text("")
+    print("  .nojekyll")
+
+
+if __name__ == "__main__":
+    main()

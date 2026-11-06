@@ -4,8 +4,7 @@ data/raw/
 # generated data
 data/processed/
 
-# generated pages are ~680 KB of inlined HTML and cannot be served by GitHub
-# Pages on a private repo, so they stay out of the tree. Run `make pages`.
+# generated pages; the published copies live in docs/site and are committed
 output/pages/
 
 __pycache__/
