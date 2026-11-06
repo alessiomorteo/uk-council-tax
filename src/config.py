@@ -67,6 +67,23 @@ SOURCES: dict[str, str] = {
         "1996-2018-data/govscot%3Adocument/"
         "CTAXBASE%2B2026%2B-%2BTables%2B-%2BBand%2BD%2Bequivalents%2B%25281%2529.xlsx"
     ),
+    # Business rates (non-domestic rates).
+    "nndr_england": (
+        "https://assets.publishing.service.gov.uk/media/69e23c0b748e5b3e949a1b9d/"
+        "NNDR1_2026-27_Supplementary_table__Values_.xlsx"
+    ),
+    "nndr_wales": (
+        "https://api.stats.gov.wales/v2/8e0d656a-50ea-4509-8363-c52d8315b750/"
+        "data?format=csv&lang=en-gb"
+    ),
+    "nndr_scotland": (
+        "https://www.gov.scot/binaries/content/documents/govscot/publications/"
+        "statistics/2025/11/non-domestic-rates-relief-statistics-2025/documents/"
+        "reliefs-publication-2025---publication-tables---xlsx/"
+        "reliefs-publication-2025---publication-tables---xlsx/"
+        "govscot%3Adocument/Reliefs%2Bpublication%2B2025%2B-%2Bpublication%2B-"
+        "%2Bpublication%2Btables.xlsx"
+    ),
 }
 
 ASHE_ZIP_MEMBER: str = "Home Geography Table 8.7a   Annual pay - Gross 2025.xlsx"

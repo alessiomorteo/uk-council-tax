@@ -45,6 +45,29 @@ Scottish Government. *Council tax base: number of chargeable dwellings*, and
 *Band D equivalents in Scotland, 1996-2026*.
 <https://www.gov.scot/publications/council-tax-datasets/>
 
+## Business rates (non-domestic rates)
+
+**England — 2026-27**
+MHCLG. *National non-domestic rates collected by councils: 2026-27 forecast*,
+NNDR1 supplementary tables. Three sheets of per-authority data with ONS codes:
+`NNDR1S Hdits Reliefs Data` (30 relief types), `NNDR1S Hdits Multipliers Data`
+(hereditaments by multiplier), `NNDR1S Empty & SBRR Data` (relief values).
+Header on row 5, data from row 6, aggregate rows first. `[x]` and `[z]` are the
+workbook's not-applicable and not-available markers.
+<https://www.gov.uk/government/statistics/national-non-domestic-rates-collected-by-councils-in-england-forecast-2026-to-2027>
+
+**Wales — 2026-27**
+Welsh Government / StatsWales. *Non-domestic rates estimates by local authority*,
+dataset `8e0d656a-50ea-4509-8363-c52d8315b750`.
+Hereditaments are published in thousands; money in thousands of pounds.
+<https://statswales.gov.wales/Catalogue/Local-Government/Finance/Non-Domestic-Rates>
+
+**Scotland — 2025-26**
+Scottish Government. *Non-domestic rates relief statistics 2025*.
+Table 12 = properties and rateable value by council area;
+Table 4 = relief counts and values by council area (1 June 2025 snapshot).
+<https://www.gov.scot/publications/non-domestic-rates-relief-statistics-2025/>
+
 ## Earnings
 
 **Median gross annual pay, 2025**

@@ -161,3 +161,35 @@ its equivalents *rise* after applying discounts and premiums. Forcing the figure
 positive would misstate the council's position.
 
 **Rejected:** clamping at zero, or treating it as a data error.
+
+---
+
+## Keep Scotland's designated utilities as their own row
+
+**Decision:** retain the "Designated utilities" row from the Scottish valuation
+roll, flagged `authority_type = "UTIL"`, rather than dropping it.
+
+**Why:** it is not a council area, but it is not a rounding error either — 54
+properties and £799m of rateable value, valued centrally because the properties
+span council boundaries. Dropping it made Scotland's national total £6.78bn
+against the published £7.58bn, a gap large enough to look like a parsing bug.
+Assigning it to any single council would overstate that council by more than its
+entire business base in some cases.
+
+**Rejected:** dropping it (breaks the national reconciliation) and allocating it
+proportionally (invents an allocation the source does not make).
+
+## Normalise units at parse time, per source
+
+**Decision:** convert each nation's money and counts to pounds and units inside
+its own parser, then assert national totals against published figures.
+
+**Why:** the three sources use three different conventions. England reports
+pounds and counts. Wales reports thousands of pounds and thousands of
+hereditaments. Scotland reports millions of pounds. A single conversion applied
+to the combined frame produced Wales rateable value of £2.79 trillion and 125
+hereditaments — both wrong by three orders of magnitude, and both plausible
+enough at a glance to pass unnoticed.
+
+**Rejected:** converting in the combined frame with one rule. The units genuinely
+differ per source, so the conversion has to sit next to the parse.

@@ -434,6 +434,86 @@ def check_discount_values(values: pd.DataFrame) -> None:
     )
 
 
+def check_business_rates(rates: pd.DataFrame) -> None:
+    """Assert the business rates table reconciles to published national totals.
+
+    Args:
+        rates: The council-level business rates table.
+    """
+    check(
+        "business rates: 350 councils plus designated utilities",
+        len(rates) == 351,
+        len(rates),
+    )
+    check(
+        "business rates: England has 296 authorities",
+        (rates.nation == "England").sum() == 296,
+        (rates.nation == "England").sum(),
+    )
+    check(
+        "business rates: Scotland has 32 councils plus utilities",
+        ((rates.nation == "Scotland") & (rates.authority_type == "CA")).sum() == 32,
+        ((rates.nation == "Scotland") & (rates.authority_type == "CA")).sum(),
+    )
+    check(
+        "business rates: Wales has 22 authorities",
+        (rates.nation == "Wales").sum() == 22,
+        (rates.nation == "Wales").sum(),
+    )
+
+    # England hereditaments reconcile exactly to the published national figure.
+    england = rates[rates.nation == "England"]
+    check(
+        "business rates: England hereditaments are 1,990,047",
+        int(england.hdits_total.sum()) == 1990047,
+        f"{int(england.hdits_total.sum()):,}",
+    )
+    check(
+        "business rates: England SBRR value is about £1.8bn",
+        abs(england.value_sbrr.sum() - 1.817e9) / 1.817e9 < 0.02,
+        f"£{england.value_sbrr.sum() / 1e9:.2f}bn",
+    )
+
+    # Scotland reconciles exactly on all three measures.
+    scotland = rates[rates.nation == "Scotland"]
+    check(
+        "business rates: Scotland hereditaments are 253,608",
+        int(scotland.hdits_total.sum()) == 253608,
+        f"{int(scotland.hdits_total.sum()):,}",
+    )
+    check(
+        "business rates: Scotland rateable value is about £7.58bn",
+        abs(scotland.rateable_value.sum() - 7.578e9) / 7.578e9 < 0.02,
+        f"£{scotland.rateable_value.sum() / 1e9:.2f}bn",
+    )
+    check(
+        "business rates: Scotland relief value is about £0.73bn",
+        abs(scotland.relief_value.sum() - 0.7298e9) / 0.7298e9 < 0.02,
+        f"£{scotland.relief_value.sum() / 1e9:.2f}bn",
+    )
+
+    # Wales: rateable value must be in the right order of magnitude. A unit
+    # error here is a factor of a thousand, so the bound is deliberately wide.
+    wales = rates[rates.nation == "Wales"]
+    check(
+        "business rates: Wales rateable value is £2-4bn",
+        2e9 < wales.rateable_value.sum() < 4e9,
+        f"£{wales.rateable_value.sum() / 1e9:.2f}bn",
+    )
+    check(
+        "business rates: Wales hereditaments are about 125,000",
+        120_000 < wales.hdits_total.sum() < 130_000,
+        f"{wales.hdits_total.sum():,.0f}",
+    )
+
+    # Two English authorities report "[x]" rather than a figure.
+    check(
+        "business rates: at most 2 English authorities lack hereditament counts",
+        int(england.hdits_total.isna().sum()) <= 2,
+        f"{int(england.hdits_total.isna().sum())}",
+    )
+
+
 def main() -> None:
     """Run every validation check.
 
@@ -458,6 +538,7 @@ def main() -> None:
     check_revenue(full)
     check_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
     check_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
+    check_business_rates(pd.read_csv(DATA_PROC / "business_rates.csv"))
 
     print()
     if FAILURES:

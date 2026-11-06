@@ -81,6 +81,11 @@ def main(force: bool = False) -> None:
         force,
     )
 
+    # Business rates (non-domestic rates), by billing authority.
+    fetch(SOURCES["nndr_england"], DATA_RAW / "nndr1_supplementary_2026-27.xlsx", force)
+    fetch(SOURCES["nndr_wales"], DATA_RAW / "nndr_wales_estimates.csv", force)
+    fetch(SOURCES["nndr_scotland"], DATA_RAW / "nndr_scotland_reliefs_2025.xlsx", force)
+
     ashe_archive = DATA_RAW / "ashe_table8_2025.zip"
     fetch(SOURCES["ashe_earnings"], ashe_archive, force)
     ashe_target = DATA_RAW / "ashe_annual_pay_2025.xlsx"

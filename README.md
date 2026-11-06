@@ -106,6 +106,33 @@ Home Counties**. Liverpool, Middlesbrough, Hartlepool and Knowsley all sit above
 34%. In City of London and Isles of Scilly the figure is *negative*: the
 second-homes premium raises more than discounts give away.
 
+### Business rates
+
+![Business rates by billing authority](output/figures/business_rates.png)
+
+Non-domestic rates are collected by the same billing authorities, but the
+published sources differ sharply in shape and vintage:
+
+| | England | Wales | Scotland |
+|---|---|---|---|
+| Source | NNDR1 supplementary | StatsWales estimates | NDR reliefs publication |
+| Year | 2026-27 | 2026-27 | 2025-26 |
+| Hereditaments | 1,990,047 | 124,517 | 253,608 |
+| Rateable value | **not published** | £2.79bn | £7.58bn |
+| Relief value | £1.82bn (SBRR) | £0.28bn | £0.73bn |
+
+England publishes the richest relief breakdown — 30 relief types across three
+sheets — but **not rateable value**, so the map panel is grey for England. That
+is a genuine gap in the release, not an omission here.
+
+Scotland's **designated utilities** are held as their own row rather than
+assigned to a council: 54 properties, £799m of rateable value, valued centrally.
+Folding them into any council would overstate it.
+
+Rateable value per hereditament ranges from **£11,147 in Na h-Eileanan Siar to
+£47,950 in Aberdeen City** among the nations that publish it — a fourfold spread
+in what the average business premises is worth.
+
 ### Interactive pages
 
 `make pages` writes two self-contained HTML files to `output/pages/`:
@@ -204,6 +231,7 @@ already present; pass `--force` to refetch.
 | `output/figures/revenue.png` | revenue per dwelling, rate against base, nation totals |
 | `output/figures/discounts.png` | exempt rate map, rate distributions, extremes |
 | `output/figures/discount_values.png` | discounts priced in pounds, ranked, waterfall |
+| `output/figures/business_rates.png` | rateable value map, relief against stock, nation totals |
 | `output/pages/map.html` | interactive map, 6 views, hover detail |
 | `output/pages/table.html` | sortable/filterable 348-row table, 21 columns |
 

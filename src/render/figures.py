@@ -1067,6 +1067,166 @@ def fig_discount_values(values: pd.DataFrame) -> None:
     print(f"  {output.name}")
 
 
+def fig_business_rates(rates: pd.DataFrame) -> None:
+    """Render the business rates figure.
+
+    Panels: rateable value per hereditament on a map, the distribution of relief
+    value per authority, and a nation summary.
+
+    Args:
+        rates: The council-level business rates table.
+    """
+    figure = plt.figure(figsize=(19, 9.6), facecolor="white")
+    grid = figure.add_gridspec(1, 3, width_ratios=[1.05, 1, 1.1], wspace=0.18)
+
+    # Councils only: designated utilities is a real row but not a council.
+    councils = rates[rates.authority_type != "UTIL"].copy()
+    councils["rv_per_hdit"] = councils["rateable_value"] / councils["hdits_total"]
+
+    # Panel 1: rateable value per hereditament. Wales and Scotland only, because
+    # England does not publish rateable value in this release.
+    axis_map = figure.add_subplot(grid[0, 0])
+    geo = load_geo()
+    lookup = {row.authority: row for _, row in councils.iterrows()}
+    for feature in geo["features"]:
+        name = feature["properties"].get("LAD24NM") or feature["properties"].get("name")
+        row = lookup.get(name)
+        feature["properties"]["rv_per_hdit"] = (
+            float(row["rv_per_hdit"])
+            if row is not None and pd.notna(row["rv_per_hdit"])
+            else None
+        )
+
+    plotted = councils["rv_per_hdit"].dropna().tolist()
+    colour_map = plt.get_cmap("YlOrBr")
+    draw_choropleth(
+        axis_map,
+        geo,
+        "rv_per_hdit",
+        colour_map,
+        min(plotted),
+        max(plotted),
+        "Rateable value per hereditament",
+    )
+    scalar = plt.cm.ScalarMappable(
+        cmap=colour_map, norm=mcolors.Normalize(min(plotted), max(plotted))
+    )
+    colourbar = figure.colorbar(
+        scalar, ax=axis_map, orientation="horizontal", fraction=0.045, pad=0.02
+    )
+    colourbar.set_label("Rateable value per hereditament (£)", fontsize=9)
+    axis_map.text(
+        0.5, -0.02,
+        "England is grey: rateable value is not in this release.",
+        transform=axis_map.transAxes, fontsize=8.2, color="#777",
+        ha="center", va="top",
+    )
+
+    # Panel 2: hereditaments against relief value, by nation.
+    axis_scatter = figure.add_subplot(grid[0, 1])
+    for nation, group in councils.groupby("nation"):
+        usable = group.dropna(subset=["hdits_total", "relief_value"])
+        if not len(usable):
+            continue
+        axis_scatter.scatter(
+            usable["hdits_total"] / 1000,
+            usable["relief_value"] / 1e6,
+            s=26,
+            alpha=0.72,
+            color=NATION_COLOUR[nation],
+            label=nation,
+            edgecolor="white",
+            linewidth=0.4,
+        )
+    axis_scatter.set_xscale("log")
+    axis_scatter.set_yscale("log")
+    axis_scatter.set_xlabel("Hereditaments (000s, log scale)", fontsize=9.5)
+    axis_scatter.set_ylabel("Relief value (£m, log scale)", fontsize=9.5)
+    axis_scatter.set_title(
+        "Relief against stock", fontsize=13, fontweight="bold", loc="left", pad=9
+    )
+    axis_scatter.text(
+        0.5, 1.005,
+        "Both axes are logarithmic: the range spans two orders of magnitude.",
+        transform=axis_scatter.transAxes, fontsize=8.4, color="#666",
+        ha="center", va="bottom",
+    )
+    axis_scatter.legend(frameon=False, fontsize=9, loc="lower right")
+    axis_scatter.grid(alpha=0.18, linewidth=0.6)
+    axis_scatter.set_axisbelow(True)
+
+    # Panel 3: nation summary.
+    axis_table = figure.add_subplot(grid[0, 2])
+    axis_table.axis("off")
+
+    rows = []
+    for nation in ["England", "Scotland", "Wales"]:
+        group = councils[councils.nation == nation]
+        hdits = group["hdits_total"].sum()
+        rv = group["rateable_value"].sum()
+        relief = group["relief_value"].sum()
+        if pd.isna(relief):
+            relief = group["value_sbrr"].sum() + group["value_empty_relief"].sum()
+        rows.append([
+            nation,
+            f"{group.authority.nunique()}",
+            f"{hdits / 1e6:.2f}m" if pd.notna(hdits) else "-",
+            f"£{rv / 1e9:.1f}bn" if pd.notna(rv) and rv > 0 else "not published",
+            f"£{relief / 1e9:.2f}bn" if pd.notna(relief) and relief > 0 else "-",
+        ])
+
+    table = axis_table.table(
+        cellText=rows,
+        colLabels=["Nation", "Councils", "Hereditaments", "Rateable value", "Relief"],
+        cellLoc="right",
+        loc="upper center",
+        bbox=[0.0, 0.42, 1.0, 0.42],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9.2)
+    for (row_index, _), cell in table.get_celld().items():
+        cell.set_edgecolor("#e2e2e2")
+        if row_index == 0:
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#f4f4f4")
+
+    axis_table.text(
+        0.0, 0.34,
+        "Business rates are collected by the same billing authorities as\n"
+        "council tax, but the published sources differ in shape and vintage:\n"
+        "England 2026-27, Scotland 2025-26, Wales 2026-27.\n\n"
+        "England publishes relief counts and values but not rateable value.\n"
+        "Wales and Scotland publish both. Figures are therefore not\n"
+        "comparable across all three on every measure.\n\n"
+        "Scotland's designated utilities (£799m of rateable value across 54\n"
+        "properties) are held as a separate row, not assigned to a council.",
+        transform=axis_table.transAxes, fontsize=8.5, color="#555",
+        va="top", linespacing=1.5,
+    )
+    axis_table.set_title(
+        "What each nation publishes", fontsize=13, fontweight="bold",
+        loc="left", pad=12,
+    )
+
+    figure.suptitle(
+        "Council Tax Comparison Across the UK: business rates",
+        fontsize=16, fontweight="bold", x=0.012, ha="left", y=0.985,
+    )
+    figure.text(
+        0.012, 0.945,
+        "Non-domestic rates by billing authority. Hereditaments are the business "
+        "equivalent of dwellings; rateable value is the basis the bill is "
+        "calculated on.",
+        fontsize=9.3, color="#555", ha="left",
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.925])
+
+    output = OUT_FIG / "business_rates.png"
+    plt.savefig(output, dpi=155, facecolor="white", bbox_inches="tight")
+    plt.close(figure)
+    print(f"  {output.name}")
+
+
 def main() -> None:
     """Render every static figure."""
     print("Rendering figures ->", OUT_FIG)
@@ -1106,6 +1266,7 @@ def main() -> None:
     fig_revenue(geo, frame)
     fig_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
     fig_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
+    fig_business_rates(pd.read_csv(DATA_PROC / "business_rates.csv"))
 
 
 if __name__ == "__main__":
