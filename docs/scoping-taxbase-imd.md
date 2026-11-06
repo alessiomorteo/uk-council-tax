@@ -1,72 +1,48 @@
-# Preparatory scoping: Council Taxbase, then IMD
+# Preparatory scoping: Council Taxbase and deprivation, all three nations
 
-Two datasets that extend the existing council tax work. Both are single-file,
-local-authority-level, ONS-coded downloads, so they slot into the current
-pipeline without new infrastructure.
+Two datasets that extend the existing council tax work across **England, Wales
+and Scotland**. Every factual claim below is asserted in
+`src/verify_three_nations.py` against the downloaded files.
 
-Everything below was verified by downloading and opening the files, not read
-from documentation.
+The original plan was England-only. Wales and Scotland publish equivalents, and
+all three are obtainable, so the scope is now GB-wide to match the existing band
+data.
 
 ---
 
 # Part 1 — Council Taxbase
 
-## Why this one first
+## Why this first
 
 The current project holds the **rate** (what each band costs). Taxbase holds the
 **count** (how many dwellings sit in each band). Multiply them and you get
 **revenue per band per council** — a number neither dataset contains alone.
 
-It also lets us compute a Band D equivalent taxbase and check it against MHCLG's
-published figure, which is a genuine validation opportunity rather than just
-another layer.
+It also allows a Band D equivalent taxbase calculation that can be checked
+against each nation's published figure, which is a hard correctness test rather
+than just another layer.
 
-## Source
+## The three sources
 
-| | |
-|---|---|
-| Publisher | Ministry of Housing, Communities and Local Government |
-| Collection | <https://www.gov.uk/government/collections/council-taxbase-statistics> |
-| Latest release | Council Taxbase 2025 in England (revised) |
-| File | `2025_Local_Authority_Drop_Down.xlsx`, 1.8 MB |
-| URL | <https://assets.publishing.service.gov.uk/media/696f605ff6aa424b452e3359/2025_Local_Authority_Drop_Down.xlsx> |
-| Licence | Open Government Licence v3.0 |
-| Years available | **2010 to 2025** — 16 annual releases in the collection |
+| Nation | Source | Shape | Years |
+|---|---|---|---|
+| **England** | MHCLG `2025_Local_Authority_Drop_Down.xlsx` | 336-col wide sheet, 35 tables side by side | 2010–2025 |
+| **Wales** | StatsWales API, dataset `062488e2-…` | long CSV, 152,362 rows | **31 years** |
+| **Scotland** | gov.scot `CTAXBASE 2026 - Tables - Chargeable Dwellings.xlsx` | single clean sheet | current only |
 
-## Structure
+All Open Government Licence v3.0.
 
-The workbook has **16 sheets**. The one we need is `Council Taxbase Data`.
+### England
 
-```
-Cover, Contents, Notes
-CTB Form, CTB Supplementary Form, CT Support, Family Annexe   <- blank forms
-Empty Properties, Second Homes                                <- blank forms
-Council Taxbase Data          <- 303 rows x 336 cols   THE ONE
-Supplementary Data            <- 303 x 92
-Council Tax Support Data      <- 303 x 80
-Family Annexe Data            <- 303 x 26
-Empty Properties Data         <- 303 x 394
-Second Homes Data             <- 303 x 116
-LA list                       <- 298 x 2
-```
+<https://assets.publishing.service.gov.uk/media/696f605ff6aa424b452e3359/2025_Local_Authority_Drop_Down.xlsx>
+(1.8 MB)
 
-### The layout trap
+**The layout trap.** `Council Taxbase Data` is **35 tables laid side by side** in
+one 336-column sheet. Row 4 carries block titles, row 5 the leaf headers, data
+from row 6. There are **31 duplicate `"Band A"` headers** — read it naively and
+pandas silently mangles the columns.
 
-`Council Taxbase Data` is **35 tables laid side by side** in one sheet, not one
-table. Row 4 carries the block titles; row 5 is the leaf header; data starts at
-row 6.
-
-```
-row 0-3   prose notes
-row 4     block titles  -> "Table 1.01 Total Number of Dwellings on Valuation List"
-row 5     leaf headers  -> "E-code | ONS Code | Region | Local Authority | Notes | Band A ... Band H | Total"
-row 6+    data
-```
-
-There are **31 occurrences of "Band A"** across 336 columns. Reading the sheet
-naively gives you duplicate column names and pandas silently mangles them.
-
-**The first block (columns 0 to 13) is the one we want:**
+The first block (columns 0–13) is the one needed:
 
 | col | field |
 |---|---|
@@ -75,18 +51,13 @@ naively gives you duplicate column names and pandas silently mangles them.
 | 2 | Region |
 | 3 | Local Authority |
 | 4 | Notes |
-| 5–12 | Band A, B, C, D, E, F, G, H (dwelling counts) |
+| 5–12 | Band A–H dwelling counts |
 | 13 | Total |
-
-Later blocks are the derived series: line 4 chargeable dwellings, discounts,
-second homes, empty properties, and so on. Valuable, but a separate decision.
-
-### Extracting it safely
 
 ```python
 raw = pd.read_excel(path, sheet_name="Council Taxbase Data", header=None)
 body = raw.iloc[6:].copy()
-body.columns = range(len(raw.columns))          # positional, avoids duplicates
+body.columns = range(len(raw.columns))     # positional; avoids duplicates
 keep = {0:"ecode", 1:"ons_code", 2:"region", 3:"authority",
         5:"band_a", 6:"band_b", 7:"band_c", 8:"band_d",
         9:"band_e", 10:"band_f", 11:"band_g", 12:"band_h", 13:"total"}
@@ -94,207 +65,296 @@ frame = body[list(keep)].rename(columns=keep)
 frame = frame[frame.ons_code.astype(str).str.match(r"^E\d{8}$")]
 ```
 
-Assigning `range(len(columns))` rather than the header row is what avoids the
-duplicate-name problem.
+**297 rows** with a valid ONS code. The first is `England` (`E92000001`), an
+aggregate — drop it, leaving **296 billing authorities**, matching the council
+tax dataset exactly.
 
-## Grain and coverage
+### Wales
 
-**297 rows** with a valid ONS code. The first row is `England` (`E92000001`), an
-aggregate — drop it, leaving **296 billing authorities**, which matches the
-council tax dataset exactly.
+StatsWales API, same pattern as the existing Wales band data:
 
-## Join to the existing work
+```
+https://api.stats.gov.wales/v2/062488e2-3fd6-4755-9b0b-a64547fc570f/data?format=csv&lang=en-gb
+```
 
-Straight ONS-code join on `LAD24CD`.
+Long format, 13 MB, **152,362 rows**. Columns:
+`Data values | Data description | Year | Row | Band | Authority | Notes`
 
-**Verified: 292 of 294 English councils match.** The two misses are **Barnsley**
-and **Sheffield** — the ONS recode already handled in `config.py`
-(`E08000016 → E08000038`, `E08000019 → E08000039`). Applying the existing
-`ONS_RECODE` map closes them.
+- **31 years** of history, 1996-97 to 2026-27
+- **23 authorities** — 22 plus a total row
+- **Bands A to I plus Total** — Wales has nine bands, as with the charges
+- **64 row types** in the `Row` column
 
-Wales and Scotland are **not** in this dataset. It is England-only. That is a
-real limitation for a UK-wide project: the revenue layer would cover England
-alone.
+That last point is the trap. Wales does not publish one number per band; it
+publishes 64 different measures, of which `A1 - All chargeable dwellings` is the
+headline count. Others include disability reduction, discount bands, second homes
+and empty properties.
+
+**Filter to the row type you want before aggregating**, or you will sum unrelated
+measures. `A1` is the direct equivalent of the England and Scotland counts.
+
+### Scotland
+
+<https://www.gov.scot/binaries/content/documents/govscot/publications/statistics/2019/04/council-tax-datasets/documents/number-of-chargeable-dwellings/chargeable-dwellings--september-2026-data/chargeable-dwellings--september-2026-data/govscot:document/CTAXBASE+2026+-+Tables+-+Chargeable+Dwellings+%25281%2529.xlsx>
+(19.6 KB)
+
+Single sheet, cleanest of the three:
+
+```
+row 0-2   prose
+row 3     blank
+row 4     Band A | Band B | ... | Band H
+row 5     valuation band ranges
+row 6     Ratio to Band D
+row 7     Scotland  (national total)
+row 8+    32 councils
+```
+
+**The trap is the same one as the charges file:** two prose rows follow the 32
+councils — a `Source:` line and a `Note:` line. Left unfiltered they parse as
+authorities and give **34 councils**. Filter the name column for prose, then
+assert the count is 32.
+
+Verified total: Scotland Band D = **373,124** dwellings.
+
+## Coverage summary
+
+| | England | Wales | Scotland |
+|---|---|---|---|
+| Authorities | 296 | 22 | 32 |
+| Bands | A–H | A–I | A–H |
+| Grain | one row per LA, wide | long, 64 row types | one row per LA |
+| Years | 16 | 31 | current |
+
+**England and Scotland have eight bands; Wales has nine.** Any pipeline sized to
+A–H silently drops Welsh Band I — the same trap as the charges work.
 
 ## What it unlocks
 
 1. **Revenue per band** — `dwellings × charge`, per council, per band. Answers
-   "which councils raise most from Band H" and "what share of a council's taxbase
-   is Band D".
+   "which councils raise most from Band H" and "what share of a taxbase is Band D".
 2. **Band D equivalent taxbase** — `Σ(dwellings_band × multiplier_band)`,
-   directly comparable to the published figure. A hard validation check.
+   checkable against each nation's published figure.
 3. **A second map layer** — the existing choropleth gains a revenue view with no
    new geography.
-4. **Rate against base** — councils with a high Band D charge and a small taxbase
-   behave very differently from those with a large base. That contrast is
-   invisible in either dataset alone.
+4. **Rate against base** — a high charge on a small taxbase behaves very
+   differently from a low charge on a large one. Invisible in either dataset alone.
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| 35 tables in one sheet | Positional column selection, as above |
-| Duplicate column names | Assign integer columns before selecting |
-| England-only | State it plainly; do not imply UK coverage |
-| ONS recode (Barnsley, Sheffield) | Reuse the existing `ONS_RECODE` map |
-| 16 years of historical files may differ in layout | Verify the header row per year before parsing, as with the Band D live table |
+| England: 35 tables in one sheet | Positional column selection |
+| England: duplicate column names | Integer columns before selecting |
+| Wales: 64 row types | Filter to `A1` before aggregating |
+| Scotland: 2 prose rows parse as councils | Filter names; assert count is 32 |
+| Wales has 9 bands, not 8 | Enumerate per nation |
+| England/Scotland current year only vs Wales 31 years | Decide whether the series is comparable before charting |
 
 ## Effort
 
-**About an hour.** Fetch, parse, join, one new figure, one new map layer. The
-boundary join, `norm_name`, `ONS_RECODE` and the render pipeline are all reusable
-unchanged.
+**About two hours** for all three, versus one hour for England alone. The extra
+work is two more parsers; the join and render are shared.
 
 ---
 
-# Part 2 — Indices of Deprivation
+# Part 2 — Deprivation
 
 ## Why this one
 
-The current project found that Band D costs **10.38%** of median pay in
-Nottingham and **2.10%** in Wandsworth. IMD answers the obvious next question:
-are the least-affordable councils also the most deprived? That is the question a
-reader actually asks, and it needs no new geography to answer.
+The project found Band D costs **10.38%** of median pay in Nottingham and
+**2.10%** in Wandsworth. Deprivation data answers the obvious next question: are
+the least-affordable councils also the most deprived?
 
-## Source
+## The three sources
 
-| | |
-|---|---|
-| Publisher | Ministry of Housing, Communities and Local Government |
-| Release | English indices of deprivation 2025 |
-| Page | <https://www.gov.uk/government/statistics/english-indices-of-deprivation-2025> |
-| Licence | Open Government Licence v3.0 |
-| Coverage | **England only** |
-| Frequency | Roughly every five years (2025, 2019, 2015, 2010) |
+| Nation | Index | Source | Grain | Rows |
+|---|---|---|---|---|
+| **England** | IMD 2025 | `File_10_..._lower-tier__v2.xlsx` | LA summary | 297 |
+| **Wales** | WIMD 2025 | StatsWales API `f30cc8bc-…` | LA summary | 1,782 |
+| **Scotland** | SIMD 2020 | data.gov.scot CSV + lookup | data zone | 223,232 |
 
-### Files available
+### England — IMD 2025
 
-| File | Grain | Size |
-|---|---|---|
-| `File_1_IoD2025_Index_of_Multiple_Deprivation.xlsx` | **LSOA** (33,756 rows) | 1.5 MB |
-| `File_2_IoD2025_Domains_of_Deprivation.xlsx` | LSOA | — |
-| `File_3_IoD2025_Supplementary_Indices_IDACI_and_IDAOPI.xlsx` | LSOA | — |
-| `File_8_IoD2025_Underlying_Indicators.xlsx` | LSOA | — |
-| `File_10_..._Local_Authority_District_Summaries__lower-tier__v2.xlsx` | **LA** (297 rows) | 226 KB |
-| `File_11_..._Local_Authority_District_Summaries__upper-tier__v2.xlsx` | LA | — |
-| `File_12_..._Local_Enterprise_Partnership__LEP__Summaries.xlsx` | LEP | — |
-| `File_13_..._Integrated_Care_Board__ICB__Summaries.xlsx` | ICB | — |
-| `File_14_..._Local_Resilience_Forum__LRG__Summaries_v2.xlsx` | LRG | — |
-| `File_15_..._Built_Up_Area__BUA__Summaries.xlsx` | BUA | — |
-
-**Start with File 10** (lower-tier LA summaries). It is 226 KB, already
-aggregated, and joins directly.
-
-## Structure — File 10
+<https://www.gov.uk/government/statistics/english-indices-of-deprivation-2025>
 
 **11 sheets**, one per domain:
+`Notes, IMD, Income, Employment, Education, Health, Crime, Barriers, Living, IDACI, IDAOPI`
 
-```
-Notes, IMD, Income, Employment, Education, Health, Crime, Barriers, Living, IDACI, IDAOPI
-```
+Header on row 0, **297 rows**, same columns on every sheet:
 
-Each sheet has the same shape. Header on row 0, data from row 1, **297 rows**:
-
-| column | meaning |
+| col | meaning |
 |---|---|
-| 0 | Local Authority District code (ONS) |
-| 1 | Local Authority District name |
+| 0 | LA District code |
+| 1 | LA District name |
 | 2 | IMD average rank |
 | 3 | IMD rank of average rank |
 | 4 | IMD average score |
 | 5 | IMD rank of average score |
-| 6 | Proportion of LSOAs in most deprived 10% nationally |
+| 6 | Proportion of LSOAs in most deprived 10% |
 | 7 | Rank of proportion |
-| 8 | Extent (share of LSOAs in most deprived 10%) |
+| 8 | Extent |
 | 9 | Rank of extent |
 
-Verified sample: Hartlepool average score 37.58 (rank 6), Blackpool 43.47
-(rank 1), Warrington 16.84 (rank 174).
+Verified: Blackpool 43.467 (rank 1), Hartlepool 37.58 (rank 6), Warrington
+16.835 (rank 174).
 
-### Choosing the measure
+An LSOA-level file also exists (`File_1`, 33,756 rows) carrying the LA code, so
+aggregating is a groupby if a weighted average is wanted.
 
-Three candidate measures, and they are not interchangeable:
+### Wales — WIMD 2025
 
-- **Average score** — the intensity of deprivation. Best for a scatter against
-  council tax burden.
-- **Rank of average score** — ordinal, 1 = most deprived. Good for a choropleth.
-- **Proportion of LSOAs in the most deprived 10%** — the "pockets" measure,
-  which catches concentrated deprivation that an average can hide.
+StatsWales API, same pattern again:
 
-Use **average score** for correlation work and **rank** for mapping. Report both
-if the finding depends on the choice.
+```
+https://api.stats.gov.wales/v2/f30cc8bc-8e97-449e-96a4-77b0400262d1/data?format=csv&lang=en-gb
+```
 
-## Structure — File 1 (if LSOA grain is needed)
+170 KB, **1,782 rows**, **22 areas**, W06 codes.
 
-Two sheets: `Notes` and `IMD25`. Header on row 0, **33,756 LSOA rows**:
+Columns: `Data values | Data description | Area code | Area name | Domain | Deprivation group | Notes`
 
-| column | meaning |
-|---|---|
-| 0 | LSOA code (2021) |
-| 1 | LSOA name (2021) |
-| 2 | Local Authority District code (2021) |
-| 3 | Local Authority District name (2021) |
-| 4 | Index of Multiple Deprivation score |
-| 5 | Index of Multiple Deprivation decile |
+- **9 domains**: WIMD, Income, Employment, Health, Education, Access to services,
+  Housing, Community safety, Physical environment
+- **5 deprivation groups** per domain: Total LSOAs, most deprived 10%, 20%, 30%, 50%
 
-The LA code is already present, so aggregating to council level is a groupby —
-useful if we want a **population-weighted** or **dwelling-weighted** average
-rather than the published unweighted one.
+This is a **count** table, not a score table — it gives you how many LSOAs fall in
+each deprivation band, not an average score. To get a comparable measure to IMD's
+average score you must derive one, or use the "most deprived 10% share" as the
+common denominator.
+
+### Scotland — SIMD 2020
+
+Two files are required, which is the main difference from the other two nations.
+
+**1. The data** — data.gov.scot CSV, 18.9 MB, **223,232 rows**:
+
+```
+https://data.gov.scot/dataset/scottish_index_of_multiple_deprivation_2020/resource/0786efac-2a01-404e-9966-e99e86a24950/download
+```
+
+Columns: `GeographyCode | GeographyName | GeographyType | DateCode | Measurement | Units | Value | Simd Domain`
+
+- **Data zones only** — `GeographyType` has exactly one value, `2011 Data Zones`
+- 7 domains plus SIMD
+- Measurements: Decile, Quintile, Vigintile, Rank
+
+**There is no council-area field.** The CSV cannot be joined to councils directly.
+
+**2. The lookup** — `SIMD 2020v2 datazone lookup`, 1.3 MB, sheet
+`SIMD 2020v2 DZ lookup data`, **6,976 data zones**:
+
+```
+https://gov.scot/binaries/content/documents/govscot/publications/statistics/2020/01/scottish-index-of-multiple-deprivation-2020-data-zone-look-up-file/documents/scottish-index-of-multiple-deprivation-data-zone-look-up/scottish-index-of-multiple-deprivation-data-zone-look-up/govscot:document/SIMD+2020v2+-+datazone+lookup+-+updated+2025.xlsx
+```
+
+This carries `DZ`, `SIMD2020v2_Rank`, `SIMD2020v2_Decile`, domain ranks,
+`Population`, and crucially **`LAcode` and `LAname`**.
+
+**The lookup already contains the ranks**, so for a council-level analysis the
+lookup alone is sufficient — the 18.9 MB CSV is only needed for finer detail.
+
+Roll up to councils with:
+
+```python
+lookup["rank"] = pd.to_numeric(lookup.SIMD2020v2_Rank, errors="coerce")
+lookup["decile"] = pd.to_numeric(lookup.SIMD2020v2_Decile, errors="coerce")
+council = lookup.groupby(["LAcode", "LAname"]).agg(
+    data_zones=("rank", "size"),
+    mean_rank=("rank", "mean"),
+    share_decile1=("decile", lambda s: (s == 1).mean()),
+).reset_index()
+```
+
+Verified: **32 council areas**, 6,976 data zones.
+
+## The comparability problem — read this before building
+
+**IMD, WIMD and SIMD are not comparable.** They differ in:
+
+- **Methodology** — different domains, weights and indicator sets
+- **Geography** — LSOA (England), LSOA (Wales), Data Zone (Scotland)
+- **Scale** — IMD and SIMD publish scores and ranks; WIMD publishes counts
+- **Vintage** — IMD 2025, WIMD 2025, **SIMD 2020**
+
+Three options, in order of honesty:
+
+1. **Rank within each nation, then compare ranks.** "Most deprived decile in
+   England" against "most deprived decile in Wales". Defensible, clearly labelled.
+2. **Use a shared denominator** — the share of small areas in the most deprived
+   10% of *their own nation*. Comparable in shape, not in absolute terms.
+3. **Do not combine.** Show three separate panels.
+
+**Do not** put IMD, WIMD and SIMD scores on one axis. That would be a fabricated
+comparison.
 
 ## Join to the existing work
 
-ONS-code join on `LAD24CD`, same as taxbase. **Expect the same Barnsley and
-Sheffield recode.** The `ONS_RECODE` map handles it.
+| Nation | Join key | Result |
+|---|---|---|
+| England | ONS code on `LAD24CD` | 297 rows; Barnsley and Sheffield need `ONS_RECODE` |
+| Wales | ONS code on `LAD24CD` | 22 of 22 |
+| Scotland | `norm_name` on council name | **32 of 32 after normalisation** |
 
-**England only.** Wales has the Welsh Index of Multiple Deprivation (WIMD) and
-Scotland has the Scottish Index of Multiple Deprivation (SIMD) — separate
-publications with different methodologies and **not comparable** to IMD. Do not
-merge them into one axis without saying so.
+The Scotland name mismatch is four councils that differ only in punctuation:
+
+| Existing data | SIMD lookup | `norm_name` |
+|---|---|---|
+| `Argyll & Bute` | `Argyll and Bute` | `argyll and bute` |
+| `Dumfries & Galloway` | `Dumfries and Galloway` | `dumfries and galloway` |
+| `Perth & Kinross` | `Perth and Kinross` | `perth and kinross` |
+| `Shetland  Islands` | `Shetland Islands` | `shetland islands` |
+
+The existing `norm_name` in `config.py` resolves all four — verified 32 of 32.
 
 ## What it unlocks
 
-1. **Burden against deprivation** — scatter of Band D as % of pay against IMD
-   average score. The headline chart.
-2. **A deprivation map layer** — the existing choropleth gains a fourth
-   substantive view.
-3. **A test of the affordability finding** — is the Nottingham/Wandsworth
-   spread explained by deprivation, or independent of it? That is a real
-   analytical question, not just a new visual.
-4. **Rank correlation** — Spearman between burden and deprivation, with the
-   caveat that both are England-only.
+1. **Burden against deprivation** — Band D as % of pay against deprivation, per
+   nation, on a shared rank axis.
+2. **A deprivation map layer** — the choropleth gains a further view.
+3. **A test of the affordability finding** — is the Nottingham/Wandsworth spread
+   explained by deprivation, or independent of it?
+4. **Rank correlation per nation** — Spearman within each nation, never pooled
+   across them.
 
 ## Risks
 
 | Risk | Mitigation |
 |---|---|
-| England-only | State it; do not imply UK coverage |
-| Three different measures | Pick deliberately; report which and why |
-| Not comparable across nations | Never merge IMD, WIMD and SIMD on one axis |
-| Five-yearly, so 2025 data against 2026-27 tax | One to two years apart; note it |
-| Decile vs score confusion | Score for arithmetic, decile/rank for display |
+| Indices not comparable | Rank within nation, or show separate panels |
+| WIMD is counts, not scores | Use share-in-most-deprived-10%, or derive a score |
+| SIMD needs a lookup file | Two downloads; the lookup alone suffices for LA work |
+| SIMD is 2020, others 2025 | Note the five-year gap |
+| Scotland name variants | `norm_name` — verified 32 of 32 |
+| Decile vs score confusion | Score for arithmetic, rank/decile for display |
 
 ## Effort
 
-**About an hour** for File 10. The join and render are identical to taxbase, so
-doing both together is barely more work than doing one.
+**About two hours** for all three. Scotland is the slow one because of the
+lookup and the rollup.
 
 ---
 
 # Recommended sequence
 
-1. **Council Taxbase** — adds a denominator to data already built. Lowest risk,
-   immediate validation opportunity (the Band D equivalent check).
-2. **IMD** — adds an independent explanatory variable. Higher analytical value,
-   same mechanics.
+1. **Council Taxbase, all three nations** — adds a denominator to data already
+   built. Lowest risk, and the Band D equivalent check gives a hard validation.
+2. **Deprivation, all three nations** — adds an explanatory variable. Higher
+   analytical value, but the comparability problem needs a decision first.
 
-Both are England-only, which is worth deciding on now: the existing project is
-UK-wide for band data but would gain two England-only layers. The honest options
-are to label those layers clearly as England-only, or to extend to WIMD and SIMD
-later at materially higher cost.
+## Decisions needed before building
+
+1. **Which taxbase row type for Wales?** `A1 - All chargeable dwellings` is the
+   direct equivalent of the other nations; the other 63 are a separate project.
+2. **Which deprivation measure?** Average score (England only), rank, or
+   share-in-most-deprived-10% (works for all three). The third is the only one
+   available consistently.
+3. **How to present non-comparable indices?** Per-nation panels, or a shared
+   rank axis with a clear caveat.
 
 ## Shared work, already done
 
-None of the following needs rebuilding:
+None of this needs rebuilding:
 
 - ONS boundary join and `norm_name` normalisation
 - `ONS_RECODE` for Barnsley and Sheffield
@@ -302,4 +362,4 @@ None of the following needs rebuilding:
 - The map, table and site renderers
 - The validation harness
 
-The new work is a parser per dataset and a join, plus figures.
+New work is one parser per nation per dataset, plus the joins and figures.
