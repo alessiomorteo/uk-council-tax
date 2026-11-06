@@ -1,9 +1,9 @@
 """Publish the built pages into a GitHub Pages site.
 
 GitHub Pages serves from the repository root or a ``docs`` directory on the
-configured branch. The pipeline writes to ``output/pages``, which is ignored by
-git, so this module copies the built pages into ``docs/`` alongside a small
-landing page and the figures.
+configured branch, and only those two locations. The pipeline writes to
+``output/pages``, which is ignored by git, so this module copies the built pages
+directly into ``docs/`` alongside a landing page and the figures.
 
 Run ``make site`` after ``make pages``. The ``site`` target is part of ``make
 all`` so the published copy never drifts from the generated one.
@@ -19,7 +19,7 @@ from config import OUT_FIG, OUT_PAGES, ROOT  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
-SITE_DIR = ROOT / "docs" / "site"
+SITE_DIR = ROOT / "docs"
 
 LANDING = """<!DOCTYPE html>
 <html lang="en-GB">

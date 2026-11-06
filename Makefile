@@ -29,7 +29,7 @@ test:
 	$(PY) src/validate.py
 
 clean:
-	rm -rf data/processed/* output/figures/* output/pages/* docs/site
+	rm -rf data/processed/* output/figures/* output/pages/* docs/index.html docs/map.html docs/table.html docs/figures docs/.nojekyll
 
 help:
 	@echo "make all      - full pipeline, site build and validation"
