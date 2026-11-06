@@ -33,6 +33,45 @@ England, Wales and Scotland, with affordability measured against local earnings.
 
 ---
 
+## Output
+
+### Band levels and the multiplier
+
+![Band A, Band D and the Band H multiplier across the UK](output/figures/band_levels.png)
+
+Band A and Band D are directly comparable across nations. The Band H panel is
+binary by design: 318 councils sit at 2.000× and the 32 Scottish councils at
+2.450×, with nothing in between.
+
+### Affordability
+
+![Band D council tax against local earnings](output/figures/affordability.png)
+
+The bill against the pay packet, with iso-burden lines at 4, 6, 8 and 10 per cent
+of median pay. Councils above the 10 per cent line are the outliers.
+
+### The band ladder by nation
+
+![The multiplier ladder for each nation](output/figures/multipliers.png)
+
+Three lines that sit on top of each other until band E, where Scotland peels
+away. A to D are identical everywhere.
+
+### Interactive pages
+
+`make pages` writes two self-contained HTML files to `output/pages/`:
+
+| File | What it is |
+|---|---|
+| `map.html` | choropleth with five views and hover detail for every council |
+| `table.html` | sortable, filterable table of all 348 councils |
+
+They are not committed, because they carry ~680 KB of inlined data and GitHub
+Pages cannot serve them from a private repository. Build them locally and open
+the files directly in a browser.
+
+---
+
 ## Quick start
 
 ```bash

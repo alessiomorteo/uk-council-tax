@@ -1,9 +1,11 @@
 # raw upstream files (~9 MB) — refetchable with `make fetch`
 data/raw/
 
-# generated
+# generated data
 data/processed/
-output/figures/
+
+# generated pages are ~680 KB of inlined HTML and cannot be served by GitHub
+# Pages on a private repo, so they stay out of the tree. Run `make pages`.
 output/pages/
 
 __pycache__/
