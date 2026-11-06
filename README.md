@@ -5,6 +5,8 @@ England, Wales and Scotland, with affordability measured against local earnings.
 
 **350 councils · 8–9 bands each · 30 years of Band D history · 0 ratio violations**
 
+**[Browse the interactive map and data table →](https://alessiomorteo.github.io/uk-council-tax/)**
+
 ---
 
 ## The headline findings
@@ -66,18 +68,19 @@ away. A to D are identical everywhere.
 | `map.html` | choropleth with five views and hover detail for every council |
 | `table.html` | sortable, filterable table of all 348 councils |
 
-They are not committed, because they carry ~680 KB of inlined data and GitHub
-Pages cannot serve them from a private repository. Build them locally and open
-the files directly in a browser.
+Published at **<https://alessiomorteo.github.io/uk-council-tax/>**. `make site`
+copies them into `docs/`, which is the GitHub Pages source directory, alongside a
+landing page and the figures.
 
 ---
 
 ## Quick start
 
 ```bash
-make all        # fetch -> parse -> align -> join -> figures -> pages -> test
+make all        # fetch -> parse -> align -> join -> figures -> pages -> site -> test
+make site       # copy built pages into docs/ for GitHub Pages
 make test       # validate the invariants only
-make clean      # remove generated data and output
+make clean      # remove generated data, output and published site
 ```
 
 Requires Python 3.10+ and `pandas odfpy openpyxl xlrd matplotlib`.
@@ -106,6 +109,7 @@ src/
 └── render/
     ├── figures.py               static PNGs -> output/figures/
     ├── pages.py                 interactive map and table -> output/pages/
+    ├── site.py                  publish pages and figures -> docs/ (GitHub Pages)
     └── templates/
         ├── map.html             map page shell; GeoJSON inlined as __GEODATA__
         └── table.html           table page shell; rows inlined as __ROWDATA__
