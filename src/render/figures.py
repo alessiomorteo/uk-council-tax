@@ -751,6 +751,164 @@ def fig_revenue(geo: dict[str, Any], frame: pd.DataFrame) -> None:
     print(f"  {output.name}")
 
 
+def fig_discounts(frame: pd.DataFrame) -> None:
+    """Render the discounts and exemptions figure.
+
+    Panels: the exempt rate on a map, the distribution of discount and exemption
+    rates by nation, and the councils at the extremes.
+
+    Args:
+        frame: The council-level discounts table.
+    """
+    figure = plt.figure(figsize=(19, 9.6), facecolor="white")
+    grid = figure.add_gridspec(1, 3, width_ratios=[1.05, 1, 1.15], wspace=0.18)
+
+    # Panel 1: exempt rate by council. England and Wales only.
+    axis_map = figure.add_subplot(grid[0, 0])
+    geo = load_geo()
+    lookup = {row.authority: row for _, row in frame.iterrows()}
+    for feature in geo["features"]:
+        name = feature["properties"].get("LAD24NM") or feature["properties"].get("name")
+        row = lookup.get(name)
+        feature["properties"]["exempt_rate"] = (
+            float(row["exempt_rate"]) if row is not None else None
+        )
+
+    values = frame["exempt_rate"].dropna().tolist()
+    colour_map = plt.get_cmap("OrRd")
+    draw_choropleth(
+        axis_map,
+        geo,
+        "exempt_rate",
+        colour_map,
+        min(values),
+        max(values),
+        "Exempt dwellings as a share of the chargeable stock",
+    )
+    scalar = plt.cm.ScalarMappable(
+        cmap=colour_map, norm=mcolors.Normalize(min(values), max(values))
+    )
+    colourbar = figure.colorbar(
+        scalar, ax=axis_map, orientation="horizontal", fraction=0.045, pad=0.02
+    )
+    colourbar.set_label("Exempt dwellings (per cent of chargeable)", fontsize=9)
+
+    # Panel 2: the distribution of the three rates.
+    axis_dist = figure.add_subplot(grid[0, 1])
+    measures = [
+        ("discount_rate", "25% discount"),
+        ("empty_rate", "Empty"),
+        ("exempt_rate", "Exempt"),
+        ("second_home_rate", "Second homes"),
+    ]
+    positions = []
+    labels = []
+    for index, (column, label) in enumerate(measures):
+        data = frame[column].dropna()
+        parts = axis_dist.boxplot(
+            data,
+            positions=[index],
+            widths=0.55,
+            patch_artist=True,
+            showfliers=True,
+            medianprops={"color": "#1a1a1a", "linewidth": 1.6},
+            boxprops={"facecolor": "#cfe0ee", "edgecolor": "#4a6f8f"},
+            whiskerprops={"color": "#4a6f8f"},
+            capprops={"color": "#4a6f8f"},
+            flierprops={
+                "marker": "o",
+                "markersize": 3,
+                "markerfacecolor": "#b03434",
+                "markeredgecolor": "none",
+                "alpha": 0.6,
+            },
+        )
+        positions.append(index)
+        labels.append(label)
+
+    axis_dist.set_xticks(positions)
+    axis_dist.set_xticklabels(labels, fontsize=9.5)
+    axis_dist.set_ylabel("Share of chargeable dwellings (%)", fontsize=9.5)
+    axis_dist.set_title(
+        "How the rates vary by council", fontsize=13, fontweight="bold",
+        loc="left", pad=9,
+    )
+    axis_dist.text(
+        0.5, 1.005,
+        "Each box is 318 councils across England and Wales.",
+        transform=axis_dist.transAxes, fontsize=8.4, color="#666",
+        ha="center", va="bottom",
+    )
+    axis_dist.grid(alpha=0.18, linewidth=0.6, axis="y")
+    axis_dist.set_axisbelow(True)
+
+    # Panel 3: the extremes, which are the interesting part.
+    axis_table = figure.add_subplot(grid[0, 2])
+    axis_table.axis("off")
+
+    rows = []
+    for label, column, count in [
+        ("Highest exempt rate", "exempt_rate", "exempt"),
+        ("Highest second-home rate", "second_home_rate", "second_homes"),
+        ("Highest empty-home rate", "empty_rate", "empty"),
+    ]:
+        top = frame.nlargest(3, column)
+        for rank, (_, row) in enumerate(top.iterrows()):
+            rows.append([
+                label if rank == 0 else "",
+                str(row["authority"])[:22],
+                f"{row[column]:.1f}%",
+                f"{int(row[count]):,}" if pd.notna(row[count]) else "-",
+            ])
+
+    table = axis_table.table(
+        cellText=rows,
+        colLabels=["", "Council", "Rate", "Count"],
+        cellLoc="right",
+        loc="upper center",
+        bbox=[0.0, 0.30, 1.0, 0.58],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9.2)
+    for (row_index, _), cell in table.get_celld().items():
+        cell.set_edgecolor("#e2e2e2")
+        if row_index == 0:
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#f4f4f4")
+
+    axis_table.text(
+        0.0, 0.22,
+        "Exempt rates run from 1.2% in Redditch to 15.4% in Nottingham, a\n"
+        "thirteenfold spread. Second homes concentrate in London and the\n"
+        "coast: City of London is 25.6%.\n\n"
+        "Scotland publishes no routine council-level discount or exemption\n"
+        "series, so it is absent from this figure rather than shown as zero.",
+        transform=axis_table.transAxes, fontsize=8.6, color="#555",
+        va="top", linespacing=1.5,
+    )
+    axis_table.set_title(
+        "Where the rates concentrate", fontsize=13, fontweight="bold",
+        loc="left", pad=12,
+    )
+
+    figure.suptitle(
+        "Council Tax Comparison Across the UK: discounts and exemptions",
+        fontsize=16, fontweight="bold", x=0.012, ha="left", y=0.985,
+    )
+    figure.text(
+        0.012, 0.945,
+        "Counts of dwellings, not values. England 2025-26, Wales 2026-27. "
+        "Scotland is not published at council level.",
+        fontsize=9.3, color="#555", ha="left",
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.925])
+
+    output = OUT_FIG / "discounts.png"
+    plt.savefig(output, dpi=155, facecolor="white", bbox_inches="tight")
+    plt.close(figure)
+    print(f"  {output.name}")
+
+
 def main() -> None:
     """Render every static figure."""
     print("Rendering figures ->", OUT_FIG)
@@ -788,6 +946,7 @@ def main() -> None:
     fig_affordability(geo, frame)
     fig_multipliers()
     fig_revenue(geo, frame)
+    fig_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
 
 
 if __name__ == "__main__":

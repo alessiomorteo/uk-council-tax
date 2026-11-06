@@ -1,8 +1,8 @@
-.PHONY: all fetch parse align join figures pages site test clean help
+.PHONY: all fetch parse align join discounts figures pages site test clean help
 
 PY ?= python3
 
-all: fetch parse align join figures pages site test
+all: fetch parse align join discounts figures pages site test
 
 fetch:
 	$(PY) src/fetch/download.py
@@ -15,6 +15,9 @@ align:
 
 join:
 	$(PY) src/build/join.py
+
+discounts:
+	$(PY) src/build/discounts.py
 
 figures:
 	$(PY) src/render/figures.py

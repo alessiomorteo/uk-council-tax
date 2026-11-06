@@ -293,6 +293,73 @@ def check_revenue(full: pd.DataFrame) -> None:
     )
 
 
+def check_discounts(discounts: pd.DataFrame) -> None:
+    """Assert the council-level discount and exemption table reconciles.
+
+    England and Wales publish these counts; Scotland does not, so the table is
+    asserted to contain exactly those two nations rather than being silently
+    zero-filled for Scotland.
+
+    Args:
+        discounts: The council-level discounts table.
+    """
+    check(
+        "discounts cover England and Wales only",
+        set(discounts.nation.unique()) == {"England", "Wales"},
+        str(sorted(discounts.nation.unique())),
+    )
+    check(
+        "discounts: England has 296 councils",
+        discounts[discounts.nation == "England"].authority.nunique() == 296,
+        discounts[discounts.nation == "England"].authority.nunique(),
+    )
+    check(
+        "discounts: Wales has 22 councils",
+        discounts[discounts.nation == "Wales"].authority.nunique() == 22,
+        discounts[discounts.nation == "Wales"].authority.nunique(),
+    )
+
+    # National totals must match the published aggregates exactly.
+    england = discounts[discounts.nation == "England"]
+    check(
+        "discounts: England chargeable is 25,056,421",
+        int(england["chargeable"].sum()) == 25056421,
+        f"{int(england['chargeable'].sum()):,}",
+    )
+    check(
+        "discounts: England exempt is 758,040",
+        int(england["exempt"].sum()) == 758040,
+        f"{int(england['exempt'].sum()):,}",
+    )
+    check(
+        "discounts: England empty is 542,260",
+        int(england["empty"].sum()) == 542260,
+        f"{int(england['empty'].sum()):,}",
+    )
+    wales = discounts[discounts.nation == "Wales"]
+    check(
+        "discounts: Wales chargeable is 1,433,016",
+        abs(wales["chargeable"].sum() - 1433016) < 2,
+        f"{wales['chargeable'].sum():,.0f}",
+    )
+
+    # Rates must be plausible: a rate above 50 per cent would mean the counts
+    # are being read from the wrong block.
+    for column in ["exempt_rate", "empty_rate", "discount_rate"]:
+        check(
+            f"discounts: {column} within 0-50pc",
+            discounts[column].between(0, 50).all(),
+            f"{discounts[column].min():.2f} to {discounts[column].max():.2f}",
+        )
+
+    # The single-adult discount is the dominant term and should be large.
+    check(
+        "discounts: discount rate median is 30-40pc",
+        30 < discounts["discount_rate"].median() < 40,
+        f"{discounts['discount_rate'].median():.2f}",
+    )
+
+
 def main() -> None:
     """Run every validation check.
 
@@ -315,6 +382,7 @@ def main() -> None:
     check_nation_multipliers(multipliers)
     check_taxbase(pd.read_csv(DATA_PROC / "taxbase_long.csv"))
     check_revenue(full)
+    check_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
 
     print()
     if FAILURES:
