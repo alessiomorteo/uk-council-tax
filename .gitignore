@@ -1,0 +1,14 @@
+# raw upstream files (~9 MB) — refetchable with `make fetch`
+data/raw/
+
+# generated
+data/processed/
+output/figures/
+output/pages/
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+.ipynb_checkpoints/

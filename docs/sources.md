@@ -1,0 +1,60 @@
+# Sources
+
+All material is Open Government Licence v3.0 unless stated.
+
+## Council tax charges by band
+
+**England — 2026-27**
+Ministry of Housing, Communities and Local Government (MHCLG).
+*Council Tax levels set by local authorities in England 2026 to 2027*, Tables 1–9.
+Sheet `Table_9` = "Area council tax by band".
+<https://www.gov.uk/government/statistics/council-tax-levels-set-by-local-authorities-in-england-2026-to-2027>
+
+**England — Band D history, 1993-94 onward**
+MHCLG. *Band D Council Tax live table*.
+Sheet `inc_PP` (incl. parish), `exc_PP` (excl. parish), `Area_CT` (area total).
+<https://www.gov.uk/government/statistical-data-sets/live-tables-on-council-tax>
+
+**Wales — 1996-97 to 2026-27**
+Welsh Government / StatsWales.
+*Council tax levels by billing authority and band*, dataset `1988b6af-2a9c-43b6-8939-83e6cceb3903`.
+<https://stats.gov.wales>
+
+**Scotland — 2026-27**
+Scottish Government. *Council Tax Assumptions (CTAS) — Council Tax by Band 2026-27*.
+<https://www.gov.scot/publications/council-tax-datasets/>
+
+## Earnings
+
+**Median gross annual pay, 2025**
+Office for National Statistics. *Annual Survey of Hours and Earnings (ASHE) 2025*,
+Table 8.7a — annual pay, gross, by place of residence and local authority.
+<https://www.ons.gov.uk/employmentandlabourmarket/peopleinwork/earningsandworkinghours/datasets/placeofresidencebylocalauthorityashetable8>
+
+## Geography
+
+**Local Authority Districts (December 2024) Boundaries UK BUC**
+Office for National Statistics, Open Geography Portal.
+Contains OS data (c) Crown copyright and database right 2025.
+<https://geoportal.statistics.gov.uk>
+
+## Legislation
+
+| Instrument | Effect |
+|---|---|
+| Local Government Finance Act 1992, s.5 | Band multipliers, England and Wales |
+| Local Government Finance Act 1992, s.74 | Band multipliers, Scotland |
+| Council Tax (Valuation Bands) (Wales) Order 2003, SI 2003/3046 | Welsh A–I bands, 2003 revaluation |
+| Council Tax (Substitution of Proportion) (Scotland) Order 2016, SSI 2016/368 | Scottish E–H ladder from 1 April 2017 |
+
+## Not used, and why
+
+- **VOA per-property band lookup** — works, but carries an explicit "not to be
+  used for commercial use" notice, and postcodes are tokenised in the URL.
+- **VOA bulk valuation list** — FOI refused under s.44(1)(a) FOIA and s.23(1)
+  CRCA 2005. An absolute exemption; there is no bulk route.
+- **Scottish Assessors (saa.gov.uk)** — behind a Cloudflare bot challenge.
+- **data.gov.uk "Council tax charges"** — single-council uploads mislabelled as
+  national (Data Mill North = Leeds only; Calderdale = Calderdale only).
+- **civaccount.co.uk API** — free and keyless, but 163 councils not 317, and
+  Band D only.

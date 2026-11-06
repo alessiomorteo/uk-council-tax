@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UK Council Tax Band D — Map</title>
+<style>
+  :root{
+    --bg:#fafafa; --card:#fff; --ink:#1a1a1a; --muted:#666; --line:#e5e5e5;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;padding:20px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+  h1{font-size:22px;margin:0 0 3px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
+  .wrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
+  .mapbox{flex:1;min-width:340px;background:var(--card);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09);padding:10px;position:relative}
+  svg{display:block;width:100%;height:auto}
+  .panel{width:250px;flex-shrink:0;background:var(--card);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09);padding:14px}
+  .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px}
+  .legend-row{display:flex;align-items:center;gap:7px;font-size:11.5px;margin:2px 0;cursor:pointer}
+  .sw{width:22px;height:13px;border-radius:2px;flex-shrink:0;border:1px solid rgba(0,0,0,.12)}
+  .tabs{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+  .tab{font-size:12px;padding:5px 11px;border-radius:20px;border:1px solid var(--line);background:#fff;cursor:pointer;font-weight:600;color:#444}
+  .tab.on{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
+  .tab.link{text-decoration:none;margin-left:auto;border-style:dashed;color:#2d63a0;border-color:#2d63a0}
+  .tab.link:hover{background:#2d63a0;color:#fff}
+  #tip{position:fixed;pointer-events:none;background:#1a1a1a;color:#fff;padding:7px 10px;border-radius:6px;font-size:12px;line-height:1.45;opacity:0;transition:opacity .1s;z-index:99;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.25)}
+  #tip b{font-size:12.5px}
+  .stat{font-size:11.5px;color:var(--muted);line-height:1.6;margin-top:10px;border-top:1px solid var(--line);padding-top:9px}
+  .stat b{color:var(--ink)}
+  .note{font-size:11.5px;color:var(--muted);margin-top:14px;line-height:1.55}
+  .loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.9);font-size:13px;color:#666;border-radius:10px}
+  path.lad{cursor:pointer;transition:opacity .08s}
+  path.lad:hover{opacity:.72;stroke:#1a1a1a;stroke-width:1.4}
+  path.nodata{fill:#e8e8e8;cursor:default}
+  #multview{padding:10px 14px 6px}
+  #multview h4{margin:0 0 3px;font-size:14px}
+  #multview .msub{font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+  #multview table{width:100%;border-collapse:collapse;font-size:13px}
+  #multview th{background:#1a1a1a;color:#fff;text-align:left;padding:8px 10px;font-size:11px;
+    text-transform:uppercase;letter-spacing:.04em;font-weight:600}
+  #multview td{padding:7px 10px;border-top:1px solid #eee;font-variant-numeric:tabular-nums}
+  #multview td.b{font-weight:700}
+  #multview tr.hi td{background:#fff4e5}
+  #multview td.gap{color:#a30000;font-weight:700}
+  #multview .mnote{font-size:11px;color:var(--muted);margin-top:11px;line-height:1.6;
+    border-top:1px solid var(--line);padding-top:9px}
+  .footer{display:flex;gap:26px;flex-wrap:wrap;margin-top:22px;padding-top:16px;border-top:2px solid var(--line);align-items:flex-start}
+  .fblock{flex:1;min-width:300px}
+  .fblock h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+  .fblock ul{margin:0;padding-left:16px}
+  .fblock li{font-size:11.5px;line-height:1.6;color:#444;margin-bottom:7px}
+  .fblock li strong{color:var(--ink)}
+  .fblock code{font-size:10.5px}
+  .licence{font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<h1>Council Tax Comparison Across the UK</h1>
+<div class="sub">Click any council for detail</div>
+
+<div class="tabs" id="tabs">
+  <a class="tab link" href="table.html">View data table →</a>
+  <div class="tab on" data-m="band_d">Band D level (£)</div>
+  <div class="tab" data-m="band_h_ratio">Band H multiplier (× Band D)</div>
+  <div class="tab" data-m="band_a">Band A level (£)</div>
+  <div class="tab" data-m="pct_income">Affordability (% of pay)</div>
+  <div class="tab" data-m="mult_table">Multiplier by nation</div>
+</div>
+
+<div class="wrap">
+  <div class="mapbox" id="mapbox">
+    <div class="loading" id="loading">Loading boundaries…</div>
+    <svg id="map" viewBox="0 0 620 900" preserveAspectRatio="xMidYMid meet"></svg>
+    <div id="multview" style="display:none"></div>
+  </div>
+  <div class="panel" id="sidepanel">
+    <h2>Legend</h2>
+    <div id="legend"></div>
+    <div class="stat" id="stat"></div>
+    <div class="note" id="note"></div>
+  </div>
+</div>
+
+
+<div class="footer">
+  <div class="fblock">
+    <h3>Caveats &amp; limitations</h3>
+    <ul>
+      <li><strong>Band D is not the same house in each nation.</strong> Bands are set against property values at 1&nbsp;April&nbsp;1991 in England and Scotland, but 1&nbsp;April&nbsp;2003 in Wales. A Band D dwelling is £68,001–£88,000 (England), £45,001–£58,000 (Scotland) and £91,001–£123,000 (Wales). Cross-nation comparisons of <em>level</em> are therefore indicative, not like-for-like.</li>
+      <li><strong>Scotland's top bands use a different multiplier ladder.</strong> Since 1&nbsp;April&nbsp;2017 (SSI&nbsp;2016/368) Scotland applies 473/360, 585/360, 705/360 and 882/360 to bands E–H, versus the 11/9, 13/9, 15/9, 18/9 used in England and Wales. Band H is 2.450× Band D in Scotland but 2.000× elsewhere.</li>
+      <li><strong>England's per-band figures cover billing authorities only.</strong> County councils and combined authorities levy precepts but do not bill, so they are not separate rows; their precept is already inside the area total.</li>
+      <li><strong>Affordability uses a household-level bill against an individual-level wage.</strong> Median gross annual pay is per job (ASHE, place of residence), while council tax is charged per dwelling and assumes at least two adults. The ratio is a relative indicator of local pressure — not what any given household actually pays after discounts, single-occupancy reductions or Council Tax Reduction.</li>
+      <li><strong>Two councils have no earnings figure.</strong> City of London and Isles of Scilly are suppressed by the ONS for small sample sizes and appear grey in the affordability view.</li>
+      <li><strong>Pay is 2025, council tax is 2026-27.</strong> The two inputs are one year apart; no uprating has been applied.</li>
+      <li><strong>Northern Ireland is excluded.</strong> It has no band system — domestic rates are rateable value × rate poundage — so it cannot appear on a band-based map.</li>
+      <li><strong>Parish precepts are included</strong> in England's area total, so two otherwise similar districts can differ because of local parish levies.</li>
+    </ul>
+  </div>
+  <div class="fblock">
+    <h3>Sources</h3>
+    <ul>
+      <li><strong>England — council tax by band, 2026-27:</strong> MHCLG, <em>Council Tax levels set by local authorities in England 2026 to 2027</em>, Tables 1–9, sheet <code>Table_9</code> (Area council tax by band). Contains public sector information licensed under the Open Government Licence v3.0.</li>
+      <li><strong>Wales — council tax by band, 2026-27:</strong> Welsh Government / StatsWales, <em>Council tax levels by billing authority and band</em>, StatsWales public API v2 (dataset <code>1988b6af-2a9c-43b6-8939-83e6cceb3903</code>). Open Government Licence v3.0.</li>
+      <li><strong>Scotland — council tax by band, 2026-27:</strong> Scottish Government, <em>Council Tax Assumptions — Council Tax by Band 2026-27</em> (CTAS series). Open Government Licence v3.0.</li>
+      <li><strong>Earnings — median gross annual pay, 2025:</strong> Office for National Statistics, <em>Annual Survey of Hours and Earnings (ASHE) 2025</em>, Table 8.7a, place of residence by local authority. Open Government Licence v3.0.</li>
+      <li><strong>Boundaries:</strong> Office for National Statistics, <em>Local Authority Districts (December 2024) Boundaries UK BUC</em>, via the ONS Open Geography Portal. Contains OS data © Crown copyright and database right 2025. Open Government Licence v3.0.</li>
+      <li><strong>Band definitions and multipliers:</strong> Local Government Finance Act 1992, s.5 (England and Wales) and s.74 (Scotland); Council Tax (Valuation Bands) (Wales) Order 2003 (SI 2003/3046); Council Tax (Substitution of Proportion) (Scotland) Order 2016 (SSI 2016/368).</li>
+    </ul>
+    <p class="licence">Figures are as published by the source bodies and have been joined and normalised for this comparison. Council tax data covers 350 local authorities (296 England, 22 Wales, 32 Scotland); affordability covers 348. Compiled from Open Government Licence v3.0 material.</p>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script>
+const SCALES = {
+  band_d: {
+    label: "Band D council tax (£)",
+    buckets: [1500,2000,2200,2400,2500,2600,2700],
+    colors: ["#f7f7f7","#d9e8f5","#a8cce8","#6fa8d4","#4a86bd","#2d63a0","#1a4275","#0d2a4d"],
+    fmt: v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0}),
+    note: "Band D is the standard comparison band. England and Wales 2026-27; Scotland 2026-27."
+  },
+  band_h_ratio: {
+    label: "Band H as a multiple of Band D",
+    buckets: [2.05, 2.3],
+    colors: ["#cfe3d4","#e8a33d","#a30000"],
+    fmt: v => v.toFixed(3) + "×",
+    categorical: true,
+    catLabels: ["2.000× — England & Wales (standard ladder)","2.450× — Scotland (SSI 2016/368)"],
+    note: "Binary by design: 318 councils at exactly 2.000×, 32 Scottish councils at exactly 2.450×. Scotland raised its E–H multipliers on 1 April 2017."
+  },
+  pct_income: {
+    label: "Band D as % of median annual pay",
+    buckets: [4,5,6,7,8,9,10],
+    colors: ["#2c7bb6","#6baed6","#abd9e9","#ffffbf","#fdae61","#f46d43","#d7191c","#8c0d0d"],
+    fmt: v => v.toFixed(2) + "%",
+    note: "Band D council tax ÷ median gross annual pay (ASHE 2025, place of residence). 348 of 350 councils; City of London and Isles of Scilly suppressed by ONS."
+  },
+  band_a: {
+    label: "Band A council tax (£)",
+    buckets: [1100,1300,1450,1600,1750,1900,2100],
+    colors: ["#fdf5f5","#f7dcdc","#eeb5b5","#e08a8a","#cd5c5c","#b03434","#8c1f1f","#661010"],
+    fmt: v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0}),
+    note: "Band A is 6/9 of Band D in all three nations — the ratio is universal."
+  }
+};
+
+let current = "band_d";
+let geo = null;
+let projection, pathGen;
+
+function colorFor(v, sc){
+  if(v==null) return "#e8e8e8";
+  for(let i=0;i<sc.buckets.length;i++){ if(v < sc.buckets[i]) return sc.colors[i]; }
+  return sc.colors[sc.colors.length-1];
+}
+
+function legendItems(sc){
+  if(sc.categorical){
+    return sc.catLabels.map((lab,i)=>({color:sc.colors[i], label:lab}));
+  }
+  const out=[];
+  sc.colors.forEach((c,i)=>out.push({color:c, label:bucketLabel(i,sc)}));
+  return out;
+}
+
+function bucketLabel(i, sc){
+  const b = sc.buckets;
+  if(i===0) return "< " + sc.fmt(b[0]);
+  if(i>=b.length) return "≥ " + sc.fmt(b[b.length-1]);
+  return sc.fmt(b[i-1]) + " – " + sc.fmt(b[i]);
+}
+
+function draw(){
+  // ---- multiplier-by-nation table view ----
+  if(current === "mult_table"){
+    document.getElementById("map").style.display = "none";
+    document.getElementById("sidepanel").style.display = "none";
+    const mv = document.getElementById("multview");
+    mv.style.display = "block";
+    // clear any legend/stat/note left over from a map view
+    document.getElementById("legend").innerHTML = "";
+    document.getElementById("stat").innerHTML = "";
+    document.getElementById("note").textContent = "";
+    renderMultTable();
+    return;
+  }
+  document.getElementById("multview").style.display = "none";
+  document.getElementById("sidepanel").style.display = "";
+  document.getElementById("map").style.display = "";
+
+  const sc = SCALES[current];
+  const svg = document.getElementById("map");
+  svg.innerHTML = "";
+  const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+  svg.appendChild(g);
+
+  geo.features.forEach(f=>{
+    const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d", pathGen(f));
+    const v = f.properties[current];
+    if(v==null){
+      p.setAttribute("class","lad nodata");
+      p.setAttribute("fill","#e8e8e8");
+    } else {
+      p.setAttribute("class","lad");
+      p.setAttribute("fill", colorFor(v, sc));
+      p.setAttribute("stroke","#fff");
+      p.setAttribute("stroke-width","0.35");
+    }
+    p.addEventListener("mousemove", e=>{
+      const pr=f.properties;
+      const tip=document.getElementById("tip");
+      if(pr[current]==null){
+        tip.innerHTML = "<b>"+pr.name+"</b><br><span style='opacity:.7'>no council tax data</span>";
+      } else {
+        const money = v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0});
+        let extra = "<br><span style='opacity:.7'>Band D "+money(pr.band_d)+" · Band A "+money(pr.band_a)+" · Band H "+money(pr.band_h)+"</span>";
+        if(pr.median_pay!=null){
+          extra += "<br><span style='opacity:.85'>median pay £"+Math.round(pr.median_pay).toLocaleString("en-GB")
+                 + " → <b>"+pr.pct_income.toFixed(2)+"%</b> of pay</span>";
+        }
+        tip.innerHTML = "<b>"+pr.name+"</b><br>"+sc.label+": <b>"+sc.fmt(pr[current])+"</b>" + extra;
+      }
+      tip.style.opacity=1;
+      tip.style.left=(e.clientX+14)+"px";
+      tip.style.top=(e.clientY+14)+"px";
+    });
+    p.addEventListener("mouseleave",()=>{document.getElementById("tip").style.opacity=0;});
+    g.appendChild(p);
+  });
+
+  // legend
+  const lg=document.getElementById("legend"); lg.innerHTML="";
+  legendItems(sc).forEach(item=>{
+    const row=document.createElement("div"); row.className="legend-row";
+    row.innerHTML='<span class="sw" style="background:'+item.color+'"></span><span>'+item.label+'</span>';
+    lg.appendChild(row);
+  });
+  const nd=document.createElement("div"); nd.className="legend-row";
+  nd.innerHTML='<span class="sw" style="background:#e8e8e8"></span><span>no data</span>';
+  lg.appendChild(nd);
+
+  // stats
+  const vals = geo.features.map(f=>f.properties[current]).filter(v=>v!=null);
+  const mn=Math.min(...vals), mx=Math.max(...vals), mean=vals.reduce((a,b)=>a+b,0)/vals.length;
+  document.getElementById("stat").innerHTML =
+    "<b>"+vals.length+"</b> councils with data<br>"+
+    "min <b>"+sc.fmt(mn)+"</b> · max <b>"+sc.fmt(mx)+"</b><br>"+
+    "mean <b>"+sc.fmt(mean)+"</b>";
+  document.getElementById("note").textContent = sc.note;
+}
+
+
+// nation-level multiplier ladder, computed from the 2026-27 charges
+function renderMultTable(){
+  const BANDS = ["A","B","C","D","E","F","G","H","I"];
+  const LADDER = {
+    England:  {A:6/9,B:7/9,C:8/9,D:1,E:11/9,F:13/9,G:15/9,H:18/9},
+    Wales:    {A:6/9,B:7/9,C:8/9,D:1,E:11/9,F:13/9,G:15/9,H:18/9,I:21/9},
+    Scotland: {A:240/360,B:280/360,C:320/360,D:360/360,
+               E:473/360,F:585/360,G:705/360,H:882/360}
+  };
+  let rows = "";
+  BANDS.forEach(b=>{
+    const e = LADDER.England[b], w = LADDER.Wales[b], s = LADDER.Scotland[b];
+    const gap = (e!=null && s!=null) ? (s/e - 1)*100 : null;
+    const hi = gap!=null && Math.abs(gap) > 0.05;
+    const f = v => v==null ? "—" : v.toFixed(4);
+    rows += '<tr class="'+(hi?"hi":"")+'">'
+      + '<td class="b">'+b+'</td>'
+      + '<td>'+f(e)+'</td>'
+      + '<td>'+f(w)+'</td>'
+      + '<td class="b" style="'+(hi?"color:#a30000":"")+'">'+f(s)+'</td>'
+      + '<td class="'+(hi?"gap":"")+'">'+(gap==null?"—":(Math.abs(gap)<0.05?"same":"+"+gap.toFixed(1)+"%"))+'</td>'
+      + '</tr>';
+  });
+
+  document.getElementById("multview").innerHTML =
+    '<h4>Multiplier by nation</h4>'
+    + '<div class="msub">Each band\u2019s charge as a multiple of Band D. '
+    + 'The multiplier is a <strong>national constant</strong> \u2014 every council within a nation uses the same ladder, '
+    + 'so this is the only place the three systems genuinely differ.</div>'
+    + '<table><thead><tr>'
+    + '<th>Band</th><th>England</th><th>Wales</th><th>Scotland</th><th>Scot vs Eng</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>'
+    + '<div class="mnote"><strong>A\u2013D are identical in all three nations.</strong> '
+    + 'Wales matches England through H, then adds Band I at 21/9 (21/9 = 2.3333) following the 2003 revaluation. '
+    + 'Scotland raised its E\u2013H multipliers on 1 April 2017 under SSI 2016/368, so Band H now costs 2.4500\u00d7 Band D '
+    + 'against 2.0000\u00d7 elsewhere \u2014 a 22.5% premium.</div>';
+}
+
+// minimal equirectangular projection fitted to UK bbox
+function makeProjection(features){
+  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  features.forEach(f=>{
+    const walk=c=>{
+      if(typeof c[0]==="number"){ if(c[0]<minx)minx=c[0]; if(c[0]>maxx)maxx=c[0]; if(c[1]<miny)miny=c[1]; if(c[1]>maxy)maxy=c[1]; }
+      else c.forEach(walk);
+    };
+    walk(f.geometry.coordinates);
+  });
+  const W=620,H=900,pad=14;
+  // latitude correction for aspect
+  const latMid=(miny+maxy)/2, k=Math.cos(latMid*Math.PI/180);
+  const dx=(maxx-minx)*k, dy=(maxy-miny);
+  const s=Math.min((W-2*pad)/dx,(H-2*pad)/dy);
+  const ox=pad+((W-2*pad)-dx*s)/2, oy=pad+((H-2*pad)-dy*s)/2;
+  return c=>[ ox+(c[0]-minx)*k*s, oy+(maxy-c[1])*s ];
+}
+
+function makePath(proj){
+  return f=>{
+    const g=f.geometry;
+    const ringToD=ring=>ring.map((c,i)=>{const p=proj(c);return (i?"L":"M")+p[0].toFixed(1)+" "+p[1].toFixed(1);}).join("")+"Z";
+    if(g.type==="Polygon") return g.coordinates.map(ringToD).join("");
+    return g.coordinates.map(poly=>poly.map(ringToD).join("")).join("");
+  };
+}
+
+const GEO_DATA = __GEODATA__;
+(function(){
+  geo=GEO_DATA;
+  projection=makeProjection(geo.features);
+  pathGen=makePath(projection);
+  document.getElementById("loading").style.display="none";
+  draw();
+})();
+
+document.querySelectorAll(".tab").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".tab").forEach(x=>x.classList.remove("on"));
+    t.classList.add("on");
+    current=t.dataset.m;
+    if(geo) draw();
+  };
+});
+</script>
+</body>
+</html>

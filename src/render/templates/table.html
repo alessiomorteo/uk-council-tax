@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Council Tax Comparison Across the UK — Data Table</title>
+<style>
+  :root{--bg:#fafafa;--card:#fff;--ink:#1a1a1a;--muted:#666;--line:#e5e5e5;--accent:#2d63a0}
+  *{box-sizing:border-box}
+  body{margin:0;padding:22px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
+  h1{font-size:23px;margin:0 0 3px;letter-spacing:-.02em}
+  .sub{color:var(--muted);font-size:13.5px;margin-bottom:16px}
+  .controls{display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+  input[type=search]{padding:7px 11px;border:1px solid var(--line);border-radius:7px;font-size:13px;min-width:230px;font-family:inherit}
+  input[type=search]:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+  .pill{font-size:12px;padding:5px 12px;border-radius:20px;border:1px solid var(--line);background:#fff;cursor:pointer;font-weight:600;color:#444;font-family:inherit}
+  .pill.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .count{font-size:12.5px;color:var(--muted);margin-left:auto}
+  .wrap{background:var(--card);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09);overflow:hidden}
+  .scroll{max-height:70vh;overflow:auto}
+  table{border-collapse:collapse;width:100%;font-size:12.5px}
+  thead th{position:sticky;top:0;background:var(--ink);color:#fff;text-align:left;padding:9px 10px;
+    font-size:11px;text-transform:uppercase;letter-spacing:.04em;font-weight:600;cursor:pointer;
+    user-select:none;white-space:nowrap;z-index:2}
+  thead th:hover{background:#333}
+  thead th .ar{opacity:.35;font-size:9px;margin-left:3px}
+  thead th.sorted .ar{opacity:1}
+  tbody td{padding:6px 10px;border-top:1px solid #f0f0f0;white-space:nowrap}
+  tbody tr:hover td{background:#f6f9fc}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  td.auth{font-weight:600}
+  .nat{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle}
+  .E{background:#2d63a0}.W{background:#b03434}.S{background:#1f6b3c}
+  .heat{font-weight:700}
+  tfoot td{padding:8px 10px;border-top:2px solid var(--line);font-size:11.5px;color:var(--muted);background:#fcfcfc}
+  .footer{margin-top:20px;padding-top:14px;border-top:2px solid var(--line);display:flex;gap:26px;flex-wrap:wrap;align-items:flex-start}
+  .fblock{flex:1;min-width:300px}
+  .fblock h3{font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:0 0 8px}
+  .fblock ul{margin:0;padding-left:16px}
+  .fblock li{font-size:11.5px;line-height:1.6;color:#444;margin-bottom:7px}
+  .fblock li strong{color:var(--ink)}
+  .fblock code{font-size:10.5px;background:#f0f0f0;padding:1px 4px;border-radius:3px}
+  .licence{font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<h1>Council Tax Comparison Across the UK</h1>
+<div class="sub">Click any column heading to sort · type to filter</div>
+
+<div class="controls">
+  <input type="search" id="q" placeholder="Filter by council or ONS code…">
+  <button class="pill on" data-n="all">All</button>
+  <button class="pill" data-n="England">England</button>
+  <button class="pill" data-n="Wales">Wales</button>
+  <button class="pill" data-n="Scotland">Scotland</button>
+  <span class="count" id="count"></span>
+</div>
+
+<div class="wrap">
+  <div class="scroll">
+    <table id="tbl">
+      <thead><tr id="hdr"></tr></thead>
+      <tbody id="body"></tbody>
+      <tfoot><tr><td colspan="16" id="foot"></td></tr></tfoot>
+    </table>
+  </div>
+</div>
+
+<div class="footer">
+  <div class="fblock">
+    <h3>Caveats &amp; limitations</h3>
+    <ul>
+      <li><strong>Band D is not the same house in each nation.</strong> Bands are set against property values at 1&nbsp;April&nbsp;1991 in England and Scotland, but 1&nbsp;April&nbsp;2003 in Wales. A Band D dwelling is £68,001–£88,000 (England), £45,001–£58,000 (Scotland) and £91,001–£123,000 (Wales). Cross-nation comparisons of <em>level</em> are indicative, not like-for-like.</li>
+      <li><strong>Scotland's top bands use a different multiplier ladder.</strong> Since 1&nbsp;April&nbsp;2017 (SSI&nbsp;2016/368) Scotland applies 473/360, 585/360, 705/360 and 882/360 to bands E–H, versus 11/9, 13/9, 15/9, 18/9 in England and Wales. Band H is 2.450× Band D in Scotland but 2.000× elsewhere.</li>
+      <li><strong>England's per-band figures cover billing authorities only.</strong> County councils and combined authorities levy precepts but do not bill, so they are not separate rows; their precept is already inside the area total.</li>
+      <li><strong>Affordability compares a household bill with an individual wage.</strong> Median gross annual pay is per job (ASHE, place of residence), while council tax is charged per dwelling and assumes at least two adults. The ratio indicates relative local pressure, not what a given household actually pays after discounts, single-occupancy reduction or Council Tax Reduction.</li>
+      <li><strong>Two councils are missing.</strong> City of London and Isles of Scilly have their earnings estimates suppressed by the ONS for small sample sizes, so they do not appear here (348 of 350 councils).</li>
+      <li><strong>Pay is 2025; council tax is 2026-27.</strong> The two inputs are one year apart and no uprating has been applied.</li>
+      <li><strong>Northern Ireland is excluded.</strong> It has no band system — domestic rates are rateable value × rate poundage — so it cannot appear in a band-based comparison.</li>
+      <li><strong>Parish precepts are included</strong> in England's area total, so two otherwise similar districts can differ because of local parish levies.</li>
+    </ul>
+  </div>
+  <div class="fblock">
+    <h3>Sources</h3>
+    <ul>
+      <li><strong>England — council tax by band, 2026-27:</strong> MHCLG, <em>Council Tax levels set by local authorities in England 2026 to 2027</em>, Tables 1–9, sheet <code>Table_9</code> (area council tax by band).</li>
+      <li><strong>Wales — council tax by band, 2026-27:</strong> Welsh Government / StatsWales, <em>Council tax levels by billing authority and band</em>, StatsWales public API v2 (dataset <code>1988b6af-2a9c-43b6-8939-83e6cceb3903</code>).</li>
+      <li><strong>Scotland — council tax by band, 2026-27:</strong> Scottish Government, <em>Council Tax Assumptions — Council Tax by Band 2026-27</em> (CTAS series).</li>
+      <li><strong>Earnings — median gross annual pay, 2025:</strong> Office for National Statistics, <em>Annual Survey of Hours and Earnings (ASHE) 2025</em>, Table 8.7a, place of residence by local authority.</li>
+      <li><strong>Boundaries:</strong> Office for National Statistics, <em>Local Authority Districts (December 2024) Boundaries UK BUC</em>, ONS Open Geography Portal. Contains OS data © Crown copyright and database right 2025.</li>
+      <li><strong>Band definitions and multipliers:</strong> Local Government Finance Act 1992, s.5 (England and Wales) and s.74 (Scotland); Council Tax (Valuation Bands) (Wales) Order 2003 (SI 2003/3046); Council Tax (Substitution of Proportion) (Scotland) Order 2016 (SSI 2016/368).</li>
+    </ul>
+    <p class="licence">All source material is Open Government Licence v3.0. Figures are as published and have been joined and normalised for this comparison.</p>
+  </div>
+</div>
+
+<script>
+const DATA = __ROWDATA__;
+
+const COLS = [
+  {k:"nation",        t:"Nation",        type:"s"},
+  {k:"authority",     t:"Council",       type:"s", cls:"auth"},
+  {k:"ons_code",      t:"ONS code",      type:"s", mono:true},
+  {k:"band_a",        t:"Band A",        type:"n", money:true},
+  {k:"band_b",        t:"Band B",        type:"n", money:true},
+  {k:"band_c",        t:"Band C",        type:"n", money:true},
+  {k:"band_d",        t:"Band D",        type:"n", money:true},
+  {k:"band_e",        t:"Band E",        type:"n", money:true},
+  {k:"band_f",        t:"Band F",        type:"n", money:true},
+  {k:"band_g",        t:"Band G",        type:"n", money:true},
+  {k:"band_h",        t:"Band H",        type:"n", money:true},
+  {k:"mult_e",        t:"E ÷ D",         type:"n", mult:true},
+  {k:"mult_h",        t:"H ÷ D",         type:"n", mult:true},
+  {k:"median_pay",    t:"Median pay",    type:"n", money:true},
+  {k:"band_d_pct_pay",t:"Band D % pay",  type:"n", pct:true, heat:true},
+  {k:"band_h_pct_pay",t:"Band H % pay",  type:"n", pct:true}
+];
+
+let sortKey = "authority", sortDir = 1, nationFilter = "all", query = "";
+
+const fmtMoney = v => v==null ? "—" : "£" + Math.round(v).toLocaleString("en-GB");
+const fmtPct   = v => v==null ? "—" : v.toFixed(2) + "%";
+const fmtMult  = v => v==null ? "—" : v.toFixed(3) + "\u00d7";
+
+function heatColor(v){
+  // 2.1% (affordable) -> 10.4% (least affordable); red scale
+  const lo=2.1, hi=10.4;
+  const t = Math.max(0, Math.min(1, (v-lo)/(hi-lo)));
+  const r = Math.round(255 - t*155);
+  const g = Math.round(255 - t*215);
+  const b = Math.round(255 - t*215);
+  return "rgb("+r+","+g+","+b+")";
+}
+
+function render(){
+  // header
+  const hdr = document.getElementById("hdr");
+  hdr.innerHTML = "";
+  COLS.forEach(c=>{
+    const th = document.createElement("th");
+    const isSorted = sortKey===c.k;
+    th.className = isSorted ? "sorted" : "";
+    th.innerHTML = c.t + '<span class="ar">' + (isSorted ? (sortDir>0?"▲":"▼") : "▲▼") + '</span>';
+    th.onclick = ()=>{
+      if(sortKey===c.k) sortDir = -sortDir;
+      else { sortKey=c.k; sortDir = (c.type==="n") ? -1 : 1; }
+      render();
+    };
+    hdr.appendChild(th);
+  });
+
+  // filter + sort
+  let rows = DATA.filter(r=>{
+    if(nationFilter!=="all" && r.nation!==nationFilter) return false;
+    if(query){
+      const q = query.toLowerCase();
+      if(!(r.authority.toLowerCase().includes(q) || String(r.ons_code).toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
+  rows.sort((a,b)=>{
+    let x=a[sortKey], y=b[sortKey];
+    if(typeof x === "string") return x.localeCompare(y)*sortDir;
+    return ((x??-Infinity) - (y??-Infinity))*sortDir;
+  });
+
+  // body
+  const body = document.getElementById("body");
+  body.innerHTML = "";
+  const frag = document.createDocumentFragment();
+  rows.forEach(r=>{
+    const tr = document.createElement("tr");
+    COLS.forEach(c=>{
+      const td = document.createElement("td");
+      const v = r[c.k];
+      if(c.cls) td.className = c.cls;
+      if(c.k==="nation"){
+        td.innerHTML = '<span class="nat '+r.nation[0]+'"></span>'+r.nation;
+      } else if(c.type==="n"){
+        td.className = "num" + (c.cls?" "+c.cls:"");
+        td.textContent = c.money ? fmtMoney(v) : (c.pct ? fmtPct(v) : (c.mult ? fmtMult(v) : v));
+        if(c.heat && v!=null){ td.classList.add("heat"); td.style.background = heatColor(v); }
+      } else {
+        td.textContent = v ?? "—";
+        if(c.mono) td.style.fontFamily = "ui-monospace,monospace";
+        if(c.mono) td.style.fontSize = "11.5px";
+      }
+      tr.appendChild(td);
+    });
+    frag.appendChild(tr);
+  });
+  body.appendChild(frag);
+
+  // counts + footer summary
+  document.getElementById("count").textContent = rows.length + " of " + DATA.length + " councils";
+  const ds = rows.map(r=>r.band_d).filter(v=>v!=null);
+  const ps = rows.map(r=>r.band_d_pct_pay).filter(v=>v!=null);
+  const avg = a => a.reduce((x,y)=>x+y,0)/a.length;
+  document.getElementById("foot").innerHTML =
+    "Showing <strong>"+rows.length+"</strong> council"+(rows.length===1?"":"s")+" · " +
+    "mean Band D <strong>"+fmtMoney(avg(ds))+"</strong> · " +
+    "range "+fmtMoney(Math.min(...ds))+" – "+fmtMoney(Math.max(...ds))+" · " +
+    "mean Band D as % of pay <strong>"+avg(ps).toFixed(2)+"%</strong>";
+}
+
+document.getElementById("q").addEventListener("input", e=>{ query=e.target.value; render(); });
+document.querySelectorAll(".pill").forEach(p=>{
+  p.onclick = ()=>{
+    document.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
+    p.classList.add("on");
+    nationFilter = p.dataset.n;
+    render();
+  };
+});
+
+render();
+</script>
+</body>
+</html>
