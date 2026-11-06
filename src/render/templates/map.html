@@ -13,8 +13,21 @@
   h1{font-size:22px;margin:0 0 3px;letter-spacing:-.02em}
   .sub{color:var(--muted);font-size:13px;margin-bottom:16px}
   .wrap{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap}
-  .mapbox{flex:1;min-width:340px;background:var(--card);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09);padding:10px;position:relative}
-  svg{display:block;width:100%;height:auto}
+
+  .mapbox{flex:1;min-width:0;background:var(--card);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09);padding:10px;position:relative}
+  svg{display:block;width:100%;height:auto;touch-action:none;cursor:grab}
+  svg.panning{cursor:grabbing}
+  .mapctl{position:absolute;top:18px;right:18px;display:flex;flex-direction:column;gap:5px;z-index:5}
+  .mapctl button{width:32px;height:32px;border-radius:7px;border:1px solid var(--line);background:#fff;
+    color:var(--ink);font-size:16px;font-weight:700;line-height:1;cursor:pointer;padding:0;
+    box-shadow:0 1px 3px rgba(0,0,0,.12);font-family:inherit}
+  .mapctl button:hover{background:#f2f2f2}
+  .mapctl button:disabled{opacity:.35;cursor:default}
+  .mapctl .reset{font-size:11px;font-weight:600}
+  .zoomhint{position:absolute;bottom:16px;left:18px;font-size:10.5px;color:var(--muted);
+    background:rgba(255,255,255,.9);padding:3px 8px;border-radius:5px;pointer-events:none;
+    opacity:0;transition:opacity .3s}
+  .zoomhint.show{opacity:1}
   .panel{width:250px;flex-shrink:0;background:var(--card);border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.09);padding:14px}
   .panel h2{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:0 0 8px}
   .legend-row{display:flex;align-items:center;gap:7px;font-size:11.5px;margin:2px 0;cursor:pointer}
@@ -53,6 +66,18 @@
   .fblock li strong{color:var(--ink)}
   .fblock code{font-size:10.5px}
   .licence{font-size:11px;color:var(--muted);line-height:1.6;margin:10px 0 0;padding-top:9px;border-top:1px solid var(--line)}
+  @media (max-width:760px){
+    body{padding:14px}
+    h1{font-size:19px}
+    .wrap{flex-direction:column}
+    .mapbox{width:100%}
+    .panel{width:100%;box-sizing:border-box}
+    .tab{font-size:11.5px;padding:5px 9px}
+    .tab.link{margin-left:0}
+    .mapctl{top:14px;right:14px}
+    .mapctl button{width:34px;height:34px}
+    #tip{max-width:calc(100vw - 28px);white-space:normal}
+  }
 </style>
 </head>
 <body>
@@ -73,6 +98,12 @@
   <div class="mapbox" id="mapbox">
     <div class="loading" id="loading">Loading boundaries…</div>
     <svg id="map" viewBox="0 0 620 900" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="mapctl" id="mapctl">
+      <button type="button" id="zin" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" id="zout" title="Zoom out" aria-label="Zoom out">−</button>
+      <button type="button" id="zreset" class="reset" title="Reset view" aria-label="Reset view">Reset</button>
+    </div>
+    <div class="zoomhint" id="zoomhint">Scroll or pinch to zoom, drag to pan</div>
     <div id="multview" style="display:none"></div>
   </div>
   <div class="panel" id="sidepanel">
@@ -178,6 +209,7 @@ function draw(){
   // ---- multiplier-by-nation table view ----
   if(current === "mult_table"){
     document.getElementById("map").style.display = "none";
+    document.getElementById("mapctl").style.display = "none";
     document.getElementById("sidepanel").style.display = "none";
     const mv = document.getElementById("multview");
     mv.style.display = "block";
@@ -191,6 +223,7 @@ function draw(){
   document.getElementById("multview").style.display = "none";
   document.getElementById("sidepanel").style.display = "";
   document.getElementById("map").style.display = "";
+  document.getElementById("mapctl").style.display = "";
 
   const sc = SCALES[current];
   const svg = document.getElementById("map");
@@ -293,23 +326,46 @@ function renderMultTable(){
     + 'against 2.0000\u00d7 elsewhere \u2014 a 22.5% premium.</div>';
 }
 
-// minimal equirectangular projection fitted to UK bbox
-function makeProjection(features){
-  let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+// Equirectangular projection fitted to the UK bounding box.
+// The canvas size adapts to the viewport so the map fills the space it is given
+// rather than being letterboxed inside a fixed 620x900 frame.
+const MAP_BOUNDS = {minx:1e9,maxx:-1e9,miny:1e9,maxy:-1e9};
+
+function measureBounds(features){
   features.forEach(f=>{
     const walk=c=>{
-      if(typeof c[0]==="number"){ if(c[0]<minx)minx=c[0]; if(c[0]>maxx)maxx=c[0]; if(c[1]<miny)miny=c[1]; if(c[1]>maxy)maxy=c[1]; }
-      else c.forEach(walk);
+      if(typeof c[0]==="number"){
+        if(c[0]<MAP_BOUNDS.minx) MAP_BOUNDS.minx=c[0];
+        if(c[0]>MAP_BOUNDS.maxx) MAP_BOUNDS.maxx=c[0];
+        if(c[1]<MAP_BOUNDS.miny) MAP_BOUNDS.miny=c[1];
+        if(c[1]>MAP_BOUNDS.maxy) MAP_BOUNDS.maxy=c[1];
+      } else c.forEach(walk);
     };
     walk(f.geometry.coordinates);
   });
-  const W=620,H=900,pad=14;
-  // latitude correction for aspect
-  const latMid=(miny+maxy)/2, k=Math.cos(latMid*Math.PI/180);
-  const dx=(maxx-minx)*k, dy=(maxy-miny);
-  const s=Math.min((W-2*pad)/dx,(H-2*pad)/dy);
-  const ox=pad+((W-2*pad)-dx*s)/2, oy=pad+((H-2*pad)-dy*s)/2;
-  return c=>[ ox+(c[0]-minx)*k*s, oy+(maxy-c[1])*s ];
+}
+
+function canvasSize(){
+  const box = document.getElementById("mapbox");
+  const width = Math.max(280, box.clientWidth - 20);
+  // Keep roughly the natural aspect of the UK, but cap the height so the map
+  // does not run off a tall phone screen.
+  const natural = 900/620;
+  const maxHeight = Math.max(320, window.innerHeight * 0.72);
+  const height = Math.min(width * natural, maxHeight);
+  return {W: Math.round(width), H: Math.round(height)};
+}
+
+function makeProjection(features, W, H){
+  const pad = 14;
+  const latMid = (MAP_BOUNDS.miny + MAP_BOUNDS.maxy) / 2;
+  const k = Math.cos(latMid * Math.PI / 180);
+  const dx = (MAP_BOUNDS.maxx - MAP_BOUNDS.minx) * k;
+  const dy = (MAP_BOUNDS.maxy - MAP_BOUNDS.miny);
+  const s = Math.min((W - 2*pad)/dx, (H - 2*pad)/dy);
+  const ox = pad + ((W - 2*pad) - dx*s)/2;
+  const oy = pad + ((H - 2*pad) - dy*s)/2;
+  return c => [ ox + (c[0] - MAP_BOUNDS.minx)*k*s, oy + (MAP_BOUNDS.maxy - c[1])*s ];
 }
 
 function makePath(proj){
@@ -322,12 +378,194 @@ function makePath(proj){
 }
 
 const GEO_DATA = __GEODATA__;
-(function(){
-  geo=GEO_DATA;
-  projection=makeProjection(geo.features);
-  pathGen=makePath(projection);
-  document.getElementById("loading").style.display="none";
+
+// ---------------------------------------------------------------- view state
+// The view is expressed in viewBox units so zooming never re-renders the paths.
+const VIEW = {x:0, y:0, w:620, h:900};
+const VIEW_HOME = {x:0, y:0, w:620, h:900};
+let canvas = {W:620, H:900};
+const MIN_VIEW = 60;      // smallest viewBox width, i.e. maximum zoom in
+const ZOOM_STEP = 1.35;
+
+function applyView(){
+  const svg = document.getElementById("map");
+  svg.setAttribute("viewBox", VIEW.x+" "+VIEW.y+" "+VIEW.w+" "+VIEW.h);
+  const atHome = Math.abs(VIEW.w - VIEW_HOME.w) < 0.5
+              && Math.abs(VIEW.x - VIEW_HOME.x) < 0.5
+              && Math.abs(VIEW.y - VIEW_HOME.y) < 0.5;
+  document.getElementById("zreset").disabled = atHome;
+  document.getElementById("zin").disabled = VIEW.w <= MIN_VIEW;
+  document.getElementById("zout").disabled = atHome;
+}
+
+function resetView(){
+  VIEW.x = VIEW_HOME.x; VIEW.y = VIEW_HOME.y;
+  VIEW.w = VIEW_HOME.w; VIEW.h = VIEW_HOME.h;
+  applyView();
+}
+
+// Zoom about a point given in viewBox coordinates.
+function zoomAt(factor, cx, cy){
+  const newW = Math.max(MIN_VIEW, Math.min(VIEW_HOME.w, VIEW.w / factor));
+  const scale = newW / VIEW.w;
+  VIEW.x = cx - (cx - VIEW.x) * scale;
+  VIEW.y = cy - (cy - VIEW.y) * scale;
+  VIEW.w = newW;
+  VIEW.h = VIEW.h * scale;
+  clampView();
+  applyView();
+}
+
+// Keep the view inside the full map extent.
+function clampView(){
+  const maxX = VIEW_HOME.x + VIEW_HOME.w - VIEW.w;
+  const maxY = VIEW_HOME.y + VIEW_HOME.h - VIEW.h;
+  VIEW.x = Math.max(VIEW_HOME.x, Math.min(maxX, VIEW.x));
+  VIEW.y = Math.max(VIEW_HOME.y, Math.min(maxY, VIEW.y));
+}
+
+function pointFromEvent(event){
+  const svg = document.getElementById("map");
+  const rect = svg.getBoundingClientRect();
+  const px = (event.clientX - rect.left) / rect.width;
+  const py = (event.clientY - rect.top) / rect.height;
+  return {x: VIEW.x + px * VIEW.w, y: VIEW.y + py * VIEW.h};
+}
+
+function setupInteractions(){
+  const svg = document.getElementById("map");
+
+  svg.addEventListener("wheel", event=>{
+    event.preventDefault();
+    const point = pointFromEvent(event);
+    zoomAt(event.deltaY < 0 ? ZOOM_STEP : 1/ZOOM_STEP, point.x, point.y);
+  }, {passive:false});
+
+  // Pointer events cover mouse drag and single-finger pan on touch.
+  let dragging = false, lastX = 0, lastY = 0;
+  svg.addEventListener("pointerdown", event=>{
+    if (event.button !== undefined && event.button !== 0) return;
+    dragging = true; lastX = event.clientX; lastY = event.clientY;
+    svg.classList.add("panning");
+    svg.setPointerCapture(event.pointerId);
+  });
+  svg.addEventListener("pointermove", event=>{
+    if (!dragging) return;
+    const rect = svg.getBoundingClientRect();
+    const dx = (event.clientX - lastX) / rect.width * VIEW.w;
+    const dy = (event.clientY - lastY) / rect.height * VIEW.h;
+    lastX = event.clientX; lastY = event.clientY;
+    VIEW.x -= dx; VIEW.y -= dy;
+    clampView();
+    applyView();
+  });
+  const endDrag = event=>{
+    if (!dragging) return;
+    dragging = false;
+    svg.classList.remove("panning");
+    try { svg.releasePointerCapture(event.pointerId); } catch (e) {}
+  };
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  // Two-finger pinch on touch devices.
+  let pinchStart = null;
+  svg.addEventListener("touchstart", event=>{
+    if (event.touches.length === 2){
+      const [a, b] = event.touches;
+      pinchStart = {
+        distance: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY),
+        width: VIEW.w,
+        centre: pointFromEvent({clientX:(a.clientX+b.clientX)/2, clientY:(a.clientY+b.clientY)/2})
+      };
+    }
+  }, {passive:true});
+  svg.addEventListener("touchmove", event=>{
+    if (event.touches.length === 2 && pinchStart){
+      event.preventDefault();
+      const [a, b] = event.touches;
+      const distance = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      const factor = distance / pinchStart.distance;
+      const targetW = Math.max(MIN_VIEW, Math.min(VIEW_HOME.w, pinchStart.width / factor));
+      VIEW.w = targetW;
+      VIEW.h = VIEW_HOME.h * (targetW / VIEW_HOME.w);
+      VIEW.x = pinchStart.centre.x - (pinchStart.centre.x - VIEW_HOME.x) * (targetW / VIEW_HOME.w);
+      VIEW.y = pinchStart.centre.y - (pinchStart.centre.y - VIEW_HOME.y) * (targetW / VIEW_HOME.w);
+      clampView();
+      applyView();
+    }
+  }, {passive:false});
+  svg.addEventListener("touchend", ()=>{ pinchStart = null; }, {passive:true});
+
+  // Double-click to zoom in one step.
+  svg.addEventListener("dblclick", event=>{
+    event.preventDefault();
+    const point = pointFromEvent(event);
+    zoomAt(ZOOM_STEP, point.x, point.y);
+  });
+
+  document.getElementById("zin").onclick = ()=>{
+    zoomAt(ZOOM_STEP, VIEW.x + VIEW.w/2, VIEW.y + VIEW.h/2);
+  };
+  document.getElementById("zout").onclick = ()=>{
+    zoomAt(1/ZOOM_STEP, VIEW.x + VIEW.w/2, VIEW.y + VIEW.h/2);
+  };
+  document.getElementById("zreset").onclick = resetView;
+
+  // Keyboard access: +/- to zoom, 0 to reset.
+  document.addEventListener("keydown", event=>{
+    if (event.target.tagName === "INPUT") return;
+    if (event.key === "+" || event.key === "="){ document.getElementById("zin").click(); }
+    else if (event.key === "-"){ document.getElementById("zout").click(); }
+    else if (event.key === "0"){ resetView(); }
+  });
+}
+
+// Rebuild the canvas when the viewport changes, preserving the zoom level.
+function resizeCanvas(){
+  const size = canvasSize();
+  if (size.W === canvas.W && size.H === canvas.H) return;
+  const ratio = VIEW.w / VIEW_HOME.w;
+  canvas = size;
+  const svg = document.getElementById("map");
+  svg.setAttribute("width", canvas.W);
+  svg.setAttribute("height", canvas.H);
+  projection = makeProjection(geo.features, canvas.W, canvas.H);
+  pathGen = makePath(projection);
+  VIEW_HOME.w = canvas.W; VIEW_HOME.h = canvas.H;
+  VIEW.w = canvas.W * ratio; VIEW.h = canvas.H * ratio;
+  VIEW.x = 0; VIEW.y = 0;
+  clampView();
+  applyView();
+  if (current !== "mult_table") draw();
+}
+
+(function boot(){
+  geo = GEO_DATA;
+  measureBounds(geo.features);
+  canvas = canvasSize();
+  const svg = document.getElementById("map");
+  svg.setAttribute("width", canvas.W);
+  svg.setAttribute("height", canvas.H);
+  projection = makeProjection(geo.features, canvas.W, canvas.H);
+  pathGen = makePath(projection);
+  VIEW_HOME.w = canvas.W; VIEW_HOME.h = canvas.H;
+  VIEW.w = canvas.W; VIEW.h = canvas.H;
+  document.getElementById("loading").style.display = "none";
   draw();
+  applyView();
+  setupInteractions();
+
+  let resizeTimer = null;
+  window.addEventListener("resize", ()=>{
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(resizeCanvas, 150);
+  });
+
+  // Show the interaction hint once, then fade it.
+  const hint = document.getElementById("zoomhint");
+  hint.classList.add("show");
+  setTimeout(()=>hint.classList.remove("show"), 4000);
 })();
 
 document.querySelectorAll(".tab").forEach(t=>{
