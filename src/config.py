@@ -1,4 +1,6 @@
-"""Shared configuration: paths, constants, and the statutory band ladders."""
+"""Shared configuration: paths, source URLs, statutory ladders and ONS recodes."""
+
+import re
 from pathlib import Path
 
 # ---------------------------------------------------------------- paths
@@ -13,8 +15,8 @@ for _p in (DATA_RAW, DATA_PROC, OUT_FIG, OUT_PAGES, OUT_TABLES):
     _p.mkdir(parents=True, exist_ok=True)
 
 # ---------------------------------------------------------------- sources
-# All Open Government Licence v3.0.
-SOURCES = {
+# All material is published under the Open Government Licence v3.0.
+SOURCES: dict[str, str] = {
     "england_bands": (
         "https://assets.publishing.service.gov.uk/media/69de1fa63e81003ae0422508/"
         "Tables_1-9_2026-27.ods"
@@ -44,63 +46,106 @@ SOURCES = {
     ),
 }
 
-ASHE_ZIP_MEMBER = "Home Geography Table 8.7a   Annual pay - Gross 2025.xlsx"
+ASHE_ZIP_MEMBER: str = "Home Geography Table 8.7a   Annual pay - Gross 2025.xlsx"
 
 # ---------------------------------------------------------------- ladders
-# England & Wales: LGFA 1992 s.5 (Wales adds Band I at 21/9 after the 2003 revaluation).
-ENGLAND_WALES = {
-    "A": 6 / 9, "B": 7 / 9, "C": 8 / 9, "D": 1.0,
-    "E": 11 / 9, "F": 13 / 9, "G": 15 / 9, "H": 18 / 9, "I": 21 / 9,
+# England and Wales: Local Government Finance Act 1992, s.5. Wales adds a ninth
+# band at 21/9 following the 2003 revaluation.
+ENGLAND_WALES: dict[str, float] = {
+    "A": 6 / 9,
+    "B": 7 / 9,
+    "C": 8 / 9,
+    "D": 1.0,
+    "E": 11 / 9,
+    "F": 13 / 9,
+    "G": 15 / 9,
+    "H": 18 / 9,
+    "I": 21 / 9,
 }
 
-# Scotland: standard ladder until 2016-17, then SSI 2016/368 from 1 April 2017.
-SCOTLAND_PRE_2017 = {
-    "A": 6 / 9, "B": 7 / 9, "C": 8 / 9, "D": 1.0,
-    "E": 11 / 9, "F": 13 / 9, "G": 15 / 9, "H": 18 / 9,
+# Scotland: the standard ladder held until 2016-17, then SSI 2016/368 replaced
+# the E to H multipliers with effect from 1 April 2017.
+SCOTLAND_PRE_2017: dict[str, float] = {
+    "A": 6 / 9,
+    "B": 7 / 9,
+    "C": 8 / 9,
+    "D": 1.0,
+    "E": 11 / 9,
+    "F": 13 / 9,
+    "G": 15 / 9,
+    "H": 18 / 9,
 }
-SCOTLAND_POST_2017 = {
-    "A": 240 / 360, "B": 280 / 360, "C": 320 / 360, "D": 360 / 360,
-    "E": 473 / 360, "F": 585 / 360, "G": 705 / 360, "H": 882 / 360,
+SCOTLAND_POST_2017: dict[str, float] = {
+    "A": 240 / 360,
+    "B": 280 / 360,
+    "C": 320 / 360,
+    "D": 360 / 360,
+    "E": 473 / 360,
+    "F": 585 / 360,
+    "G": 705 / 360,
+    "H": 882 / 360,
 }
 
-SCOTLAND_REFORM_YEAR = 2017  # first financial year using the new ladder
+SCOTLAND_REFORM_YEAR: int = 2017
 
-BANDS = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
+BANDS: list[str] = ["A", "B", "C", "D", "E", "F", "G", "H", "I"]
 
-# Property value thresholds, for the alignment caveats.
-VALUATION_THRESHOLDS = {
-    "England":  {"date": "1991-04-01", "bands": 8,
-                 "D": (68_001, 88_000)},
-    "Scotland": {"date": "1991-04-01", "bands": 8,
-                 "D": (45_001, 58_000)},
-    "Wales":    {"date": "2003-04-01", "bands": 9,
-                 "D": (91_001, 123_000)},
+# Property value thresholds, used for the cross-nation alignment caveats.
+VALUATION_THRESHOLDS: dict[str, dict[str, object]] = {
+    "England": {"date": "1991-04-01", "bands": 8, "band_d": (68_001, 88_000)},
+    "Scotland": {"date": "1991-04-01", "bands": 8, "band_d": (45_001, 58_000)},
+    "Wales": {"date": "2003-04-01", "bands": 9, "band_d": (91_001, 123_000)},
 }
 
-# ONS recoded these authorities; boundary files may carry the old code.
-ONS_RECODE = {
+# The ONS recoded these authorities; boundary files may carry the older code.
+ONS_RECODE: dict[str, str] = {
     "E08000016": "E08000038",  # Barnsley
     "E08000019": "E08000039",  # Sheffield
 }
 
-NATION_BY_PREFIX = {"E": "England", "W": "Wales", "S": "Scotland", "N": "Northern Ireland"}
+NATION_BY_PREFIX: dict[str, str] = {
+    "E": "England",
+    "W": "Wales",
+    "S": "Scotland",
+    "N": "Northern Ireland",
+}
 
 
-def ladder(nation: str, year: str) -> dict:
-    """Return the statutory multiplier ladder for a nation in a given financial year."""
+def ladder(nation: str, year: str) -> dict[str, float]:
+    """Return the statutory multiplier ladder for a nation in a financial year.
+
+    Args:
+        nation: One of ``England``, ``Wales`` or ``Scotland``.
+        year: Financial year as ``YYYY-YY``, for example ``2026-27``.
+
+    Returns:
+        Mapping of band letter to its multiplier against Band D. Scotland
+        returns the post-2017 ladder from 2017-18 onward and the standard
+        ladder before that; the other nations always return the same ladder.
+    """
     if nation == "Scotland":
         start = int(year.split("-")[0])
         return SCOTLAND_POST_2017 if start >= SCOTLAND_REFORM_YEAR else SCOTLAND_PRE_2017
     return ENGLAND_WALES
 
 
-def norm_name(s: str) -> str:
-    """Normalise an authority name for joining across ONS / council sources."""
-    import re
-    s = str(s).lower().strip().replace("&", "and").replace(",", " ")
-    s = re.sub(r"\bcouncil\b", "", s)
-    s = re.sub(r"\bcounty\b", "", s)
-    s = re.sub(r"[^a-z0-9 ]", "", s)
-    s = re.sub(r"\bcity of\b", "", s)
-    s = re.sub(r"\bof\b", "", s)
-    return re.sub(r"\s+", " ", s).strip()
+def norm_name(name: str) -> str:
+    """Normalise an authority name so it can be joined across sources.
+
+    The ONS uses forms such as ``Bristol, City of`` and ``Herefordshire, County
+    of`` while council publications use ``Bristol`` and ``Herefordshire``.
+    Stripping the structural words and punctuation yields a common key.
+
+    Args:
+        name: An authority name from any source.
+
+    Returns:
+        A lower-case key with structural words and punctuation removed.
+    """
+    text = str(name).lower().strip().replace("&", "and").replace(",", " ")
+    text = re.sub(r"\bcouncil\b", "", text)
+    text = re.sub(r"\bcounty\b", "", text)
+    text = re.sub(r"[^a-z0-9 ]", "", text)
+    text = re.sub(r"\bcity of\b", "", text)
+    text = re.sub(r"\bof\b", "", text)
+    return re.sub(r"\s+", " ", text).strip()

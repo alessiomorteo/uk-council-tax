@@ -1,8 +1,9 @@
 """Assert the invariants this dataset depends on.
 
-Run: python3 src/validate.py   (or `make test`)
-Exits non-zero on any failure.
+Run with ``make test`` or ``python3 src/validate.py``. The process exits
+non-zero if any check fails.
 """
+
 import sys
 import warnings
 from pathlib import Path
@@ -10,15 +11,39 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from config import (BANDS, DATA_PROC, ENGLAND_WALES, SCOTLAND_POST_2017,  # noqa: E402
-                    SCOTLAND_PRE_2017, ladder)
+from config import (  # noqa: E402
+    BANDS,
+    DATA_PROC,
+    ENGLAND_WALES,
+    SCOTLAND_POST_2017,
+    SCOTLAND_PRE_2017,
+    ladder,
+)
 
 warnings.filterwarnings("ignore")
 
-FAILURES = []
+# Absolute tolerance for the ratio identity, allowing for published rounding.
+RATIO_TOLERANCE: float = 1e-3
+
+# Spread above this counts as real variation rather than rounding noise.
+UNIFORMITY_TOLERANCE: float = 1e-4
+
+EXPECTED_COUNTS: dict[str, int] = {"England": 296, "Wales": 22, "Scotland": 32}
+
+# Councils the ONS suppresses for small sample sizes, so no earnings estimate.
+SUPPRESSED_COUNCILS: set[str] = {"City of London", "Isles of Scilly"}
+
+FAILURES: list[str] = []
 
 
-def check(name, condition, detail=""):
+def check(name: str, condition: bool, detail: object = "") -> None:
+    """Record the outcome of a single assertion.
+
+    Args:
+        name: A short description of what is being asserted.
+        condition: The assertion result.
+        detail: Extra context printed when the check fails.
+    """
     if condition:
         print(f"  PASS  {name}")
     else:
@@ -26,90 +51,174 @@ def check(name, condition, detail=""):
         FAILURES.append(name)
 
 
-def main():
+def check_ratio_identity(aligned: pd.DataFrame) -> None:
+    """Assert that every charge equals its statutory multiplier times Band D.
+
+    Args:
+        aligned: The aligned charge table with expected and actual ratios.
+    """
+    deviation = (aligned.ratio_actual - aligned.ratio_expected).abs().dropna()
+    check(
+        "ratio identity (charge divided by Band D equals statutory multiplier)",
+        bool((deviation < RATIO_TOLERANCE).all()),
+        f"max deviation {deviation.max():.6f}",
+    )
+
+
+def check_coverage(bands: pd.DataFrame, full: pd.DataFrame) -> None:
+    """Assert the expected authority counts and the suppression behaviour.
+
+    Args:
+        bands: The full band table covering every council.
+        full: The affordability table after the earnings join.
+    """
+    band_counts = (
+        bands.drop_duplicates(["nation", "authority"]).groupby("nation").size().to_dict()
+    )
+    for nation, expected in EXPECTED_COUNTS.items():
+        check(
+            f"{nation} has {expected} authorities",
+            band_counts.get(nation) == expected,
+            band_counts,
+        )
+
+    counts = full.groupby("nation").size().to_dict()
+    check(
+        "affordability drops exactly 2 English councils",
+        counts.get("England") == EXPECTED_COUNTS["England"] - len(SUPPRESSED_COUNCILS),
+        counts,
+    )
+
+    england_bands = set(bands[bands.nation == "England"].authority)
+    england_full = set(full[full.nation == "England"].authority)
+    check(
+        "the dropped councils are the ONS-suppressed ones",
+        england_bands - england_full == SUPPRESSED_COUNCILS,
+        england_bands - england_full,
+    )
+
+
+def check_completeness(full: pd.DataFrame) -> None:
+    """Assert no duplicate councils and no missing bands.
+
+    Args:
+        full: The affordability table.
+    """
+    duplicates = int(full.duplicated(subset=["nation", "authority"]).sum())
+    check("no duplicate councils", duplicates == 0, f"{duplicates} duplicates")
+
+    for band in "ABCDEFGH":
+        nulls = int(full[f"band_{band.lower()}"].isna().sum())
+        check(f"band {band} complete", nulls == 0, f"{nulls} nulls")
+
+
+def check_uniformity(aligned: pd.DataFrame) -> None:
+    """Assert the multiplier is a national constant, not a local choice.
+
+    Args:
+        aligned: The aligned charge table.
+    """
+    for nation, group in aligned.groupby("nation"):
+        worst = 0.0
+        for band in BANDS:
+            values = group[group.band == band]["ratio_actual"].dropna()
+            if len(values) > 1:
+                worst = max(worst, float(values.max() - values.min()))
+        check(
+            f"{nation} ladder uniform across councils",
+            worst < UNIFORMITY_TOLERANCE,
+            f"spread {worst:.8f}",
+        )
+
+
+def check_statute() -> None:
+    """Assert the statutory ladders, including the 2017 Scottish reform."""
+    check(
+        "Scotland post-2017 Band H is 2.450",
+        abs(SCOTLAND_POST_2017["H"] - 2.45) < 1e-9,
+    )
+    check(
+        "Scotland pre-2017 Band H is 2.000",
+        abs(SCOTLAND_PRE_2017["H"] - 2.0) < 1e-9,
+    )
+    check(
+        "ladder switches at 2017",
+        ladder("Scotland", "2016-17")["H"] == 2.0
+        and abs(ladder("Scotland", "2017-18")["H"] - 2.45) < 1e-9,
+    )
+
+    for band in "ABCDEFGH":
+        check(
+            f"England and Wales band {band} share a multiplier",
+            abs(ENGLAND_WALES[band] - ladder("England", "2026-27")[band]) < 1e-12,
+        )
+
+    check("Wales has Band I at 21/9", abs(ENGLAND_WALES["I"] - 21 / 9) < 1e-9)
+    check("Scotland has no Band I", "I" not in SCOTLAND_POST_2017)
+
+
+def check_affordability(full: pd.DataFrame) -> None:
+    """Assert the affordability figures fall in a plausible range.
+
+    Args:
+        full: The affordability table.
+    """
+    shares = full["band_d_pct_pay"]
+    check(
+        "affordability within plausible bounds",
+        bool(shares.between(0, 20).all()),
+        f"{shares.min():.2f} to {shares.max():.2f} per cent",
+    )
+    check(
+        "Wandsworth is the most affordable",
+        full.loc[shares.idxmin(), "authority"] == "Wandsworth",
+    )
+    check(
+        "Nottingham is the least affordable",
+        full.loc[shares.idxmax(), "authority"] == "Nottingham",
+    )
+
+
+def check_nation_multipliers(multipliers: pd.DataFrame) -> None:
+    """Assert the nation-level Band H multipliers.
+
+    Args:
+        multipliers: The nation multiplier table indexed by band.
+    """
+    check(
+        "Scotland Band H multiplier is 2.45",
+        abs(multipliers.loc["H", "Scotland"] - 2.45) < 1e-4,
+    )
+    check(
+        "England Band H multiplier is 2.00",
+        abs(multipliers.loc["H", "England"] - 2.0) < 1e-4,
+    )
+
+
+def main() -> None:
+    """Run every validation check.
+
+    Raises:
+        SystemExit: If any check fails.
+    """
     print("Validating processed data\n")
 
     aligned = pd.read_csv(DATA_PROC / "uk_bands_aligned_2026-27.csv")
     full = pd.read_csv(DATA_PROC / "uk_council_tax_full.csv")
-    mult = pd.read_csv(DATA_PROC / "nation_multipliers.csv", index_col=0)
-
-    # 1. ratio identity on every row
-    dev = (aligned.ratio_actual - aligned.ratio_expected).abs()
-    check("ratio identity (charge / Band D == statutory multiplier)",
-          bool((dev.dropna() < 1e-3).all()),
-          f"max deviation {dev.max():.6f}")
-
-    # 2. expected coverage
     bands = pd.read_csv(DATA_PROC / "uk_bands_2026-27.csv")
-    band_counts = bands.drop_duplicates(["nation", "authority"]).groupby("nation").size().to_dict()
-    check("England has 296 billing authorities", band_counts.get("England") == 296, band_counts)
-    check("Wales has 22 unitary authorities", band_counts.get("Wales") == 22, band_counts)
-    check("Scotland has 32 councils", band_counts.get("Scotland") == 32, band_counts)
+    multipliers = pd.read_csv(DATA_PROC / "nation_multipliers.csv", index_col=0)
 
-    # the affordability file drops exactly the ONS-suppressed councils
-    counts = full.groupby("nation").size().to_dict()
-    check("affordability drops exactly 2 English councils (ONS suppressed)",
-          counts.get("England") == 294, counts)
-    suppressed = {"City of London", "Isles of Scilly"}
-    eng_band = set(bands[bands.nation == "England"].authority)
-    eng_full = set(full[full.nation == "England"].authority)
-    check("the dropped councils are the ONS-suppressed ones",
-          eng_band - eng_full == suppressed, eng_band - eng_full)
-
-    # 3. no duplicate council rows
-    dup = full.duplicated(subset=["nation", "authority"]).sum()
-    check("no duplicate councils", dup == 0, f"{dup} duplicates")
-
-    # 4. every council has all eight bands
-    for b in "ABCDEFGH":
-        nulls = full[f"band_{b.lower()}"].isna().sum()
-        check(f"band {b} complete", nulls == 0, f"{nulls} nulls")
-
-    # 5. the ladder is a national constant
-    for nation, g in aligned.groupby("nation"):
-        worst = 0.0
-        for b in BANDS:
-            s = g[g.band == b]["ratio_actual"].dropna()
-            if len(s) > 1:
-                worst = max(worst, float(s.max() - s.min()))
-        check(f"{nation} ladder uniform across councils", worst < 1e-4, f"spread {worst:.8f}")
-
-    # 6. the Scotland reform is present and dated
-    check("Scotland post-2017 Band H is 2.450",
-          abs(SCOTLAND_POST_2017["H"] - 2.45) < 1e-9)
-    check("Scotland pre-2017 Band H is 2.000",
-          abs(SCOTLAND_PRE_2017["H"] - 2.0) < 1e-9)
-    check("ladder() switches at 2017",
-          ladder("Scotland", "2016-17")["H"] == 2.0
-          and abs(ladder("Scotland", "2017-18")["H"] - 2.45) < 1e-9)
-
-    # 7. England and Wales share the A-H ladder
-    for b in "ABCDEFGH":
-        check(f"England/Wales band {b} share multiplier",
-              abs(ENGLAND_WALES[b] - ladder("England", "2026-27")[b]) < 1e-12)
-
-    # 8. Wales has a ninth band, England and Scotland do not
-    check("Wales has Band I at 21/9", abs(ENGLAND_WALES["I"] - 21 / 9) < 1e-9)
-    check("Scotland has no Band I", "I" not in SCOTLAND_POST_2017)
-
-    # 9. affordability sanity
-    check("affordability within plausible bounds",
-          full.band_d_pct_pay.between(0, 20).all(),
-          f"{full.band_d_pct_pay.min():.2f}-{full.band_d_pct_pay.max():.2f}%")
-    check("Wandsworth is the most affordable",
-          full.loc[full.band_d_pct_pay.idxmin(), "authority"] == "Wandsworth")
-    check("Nottingham is the least affordable",
-          full.loc[full.band_d_pct_pay.idxmax(), "authority"] == "Nottingham")
-
-    # 10. nation multipliers
-    check("Scotland Band H multiplier is 2.45x",
-          abs(mult.loc["H", "Scotland"] - 2.45) < 1e-4)
-    check("England Band H multiplier is 2.00x",
-          abs(mult.loc["H", "England"] - 2.0) < 1e-4)
+    check_ratio_identity(aligned)
+    check_coverage(bands, full)
+    check_completeness(full)
+    check_uniformity(aligned)
+    check_statute()
+    check_affordability(full)
+    check_nation_multipliers(multipliers)
 
     print()
     if FAILURES:
-        print(f"{len(FAILURES)} FAILURES: {FAILURES}")
+        print(f"{len(FAILURES)} failures: {FAILURES}")
         raise SystemExit(1)
     print("all checks passed.")
 

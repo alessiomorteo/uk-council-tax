@@ -1,13 +1,15 @@
 """Build the interactive map page and the sortable data table page.
 
-Both are self-contained single files: the GeoJSON and the row data are inlined
-as JS literals so they work from file:// without a server (a fetch() of a
-sibling file is blocked by CORS).
+Both are self-contained single files. The GeoJSON and the row data are inlined
+as JavaScript literals so they work from ``file://`` without a server, because a
+``fetch`` of a sibling file is blocked by cross-origin policy.
 """
+
 import json
 import sys
 import warnings
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -18,111 +20,199 @@ warnings.filterwarnings("ignore")
 
 TEMPLATES = Path(__file__).resolve().parent / "templates"
 
+# Coordinates are rounded to three decimal places, roughly 110 metres, which is
+# ample for a national choropleth and keeps the inlined payload small.
+COORDINATE_PRECISION: int = 3
 
-def slim_geojson(bands: pd.DataFrame, full: pd.DataFrame) -> dict:
-    """Boundaries + per-council values, coordinates rounded to 3dp (~110 m).
+TABLE_COLUMNS: list[str] = [
+    "nation",
+    "authority",
+    "LAD24CD",
+    "band_a",
+    "band_b",
+    "band_c",
+    "band_d",
+    "band_e",
+    "band_f",
+    "band_g",
+    "band_h",
+    "median",
+    "band_d_pct_pay",
+    "band_h_pct_pay",
+    "mult_e",
+    "mult_h",
+]
 
-    Band fields come from the full 350-council set; affordability fields come
-    from the 348-council set (two councils are ONS-suppressed for earnings).
-    Merging both keeps the band maps complete while leaving affordability grey
-    where there is genuinely no data.
+
+def round_coordinates(value: Any) -> Any:
+    """Recursively round a GeoJSON coordinate structure.
+
+    Args:
+        value: A coordinate pair, or a nested list of them.
+
+    Returns:
+        The same structure with every coordinate rounded.
+    """
+    if isinstance(value[0], (int, float)):
+        return [round(value[0], COORDINATE_PRECISION),
+                round(value[1], COORDINATE_PRECISION)]
+    return [round_coordinates(item) for item in value]
+
+
+def slim_geojson(bands: pd.DataFrame, affordable: pd.DataFrame) -> dict[str, Any]:
+    """Build a boundary collection carrying per-council values.
+
+    Band fields come from the full 350-council set and affordability fields from
+    the 348-council set, because two councils have no earnings estimate. Merging
+    both keeps the band maps complete while leaving affordability genuinely
+    empty where there is no data.
+
+    Args:
+        bands: One row per council with a column per band and an ONS code.
+        affordable: One row per council with earnings and derived ratios.
+
+    Returns:
+        A GeoJSON FeatureCollection with values attached to each feature.
     """
     geo = json.loads((DATA_RAW / "lad_boundaries.geojson").read_text())
-    band_lut = {r.LAD24CD: r for _, r in bands.iterrows()}
-    aff_lut = {r.LAD24CD: r for _, r in full.iterrows()}
+    band_lookup = {row.LAD24CD: row for _, row in bands.iterrows()}
+    afford_lookup = {row.LAD24CD: row for _, row in affordable.iterrows()}
 
-    def rnd(c):
-        if isinstance(c[0], (int, float)):
-            return [round(c[0], 3), round(c[1], 3)]
-        return [rnd(x) for x in c]
+    features: list[dict[str, Any]] = []
+    for feature in geo["features"]:
+        code = feature["properties"]["LAD24CD"]
+        band_row = band_lookup.get(code)
+        afford_row = afford_lookup.get(code)
+        properties: dict[str, Any] = {
+            "code": code,
+            "name": feature["properties"]["LAD24NM"],
+        }
 
-    feats = []
-    for f in geo["features"]:
-        code = f["properties"]["LAD24CD"]
-        b = band_lut.get(code)
-        a = aff_lut.get(code)
-        props = {"code": code, "name": f["properties"]["LAD24NM"]}
-
-        if b is not None:
-            props.update({
-                "authority": b.authority,
-                "nation": b.nation,
-                "band_a": round(float(b.band_a), 2),
-                "band_d": round(float(b.band_d), 2),
-                "band_h": round(float(b.band_h), 2),
-                "band_h_ratio": round(float(b.band_h) / float(b.band_d), 4),
-            })
+        if band_row is not None:
+            properties.update(
+                {
+                    "authority": band_row.authority,
+                    "nation": band_row.nation,
+                    "band_a": round(float(band_row.band_a), 2),
+                    "band_d": round(float(band_row.band_d), 2),
+                    "band_h": round(float(band_row.band_h), 2),
+                    "band_h_ratio": round(
+                        float(band_row.band_h) / float(band_row.band_d), 4
+                    ),
+                }
+            )
         else:
-            props.update({"authority": None, "nation": None, "band_a": None,
-                          "band_d": None, "band_h": None, "band_h_ratio": None})
+            properties.update(
+                {
+                    "authority": None,
+                    "nation": None,
+                    "band_a": None,
+                    "band_d": None,
+                    "band_h": None,
+                    "band_h_ratio": None,
+                }
+            )
 
-        if a is not None:
-            props.update({
-                "median_pay": round(float(a["median"]), 0),
-                "pct_income": round(float(a.band_d_pct_pay), 2),
-            })
+        if afford_row is not None:
+            properties.update(
+                {
+                    "median_pay": round(float(afford_row["median"]), 0),
+                    "pct_income": round(float(afford_row.band_d_pct_pay), 2),
+                }
+            )
         else:
-            props.update({"median_pay": None, "pct_income": None})
+            properties.update({"median_pay": None, "pct_income": None})
 
-        g = f["geometry"]
-        if g["type"] == "Polygon":
-            g["coordinates"] = [[rnd(p) for p in ring] for ring in g["coordinates"]]
-        else:
-            g["coordinates"] = [[[rnd(p) for p in ring] for ring in poly]
-                                for poly in g["coordinates"]]
-        feats.append({"type": "Feature", "properties": props, "geometry": g})
-    return {"type": "FeatureCollection", "features": feats}
+        geometry = feature["geometry"]
+        geometry["coordinates"] = round_coordinates(geometry["coordinates"])
+        features.append(
+            {"type": "Feature", "properties": properties, "geometry": geometry}
+        )
+
+    return {"type": "FeatureCollection", "features": features}
 
 
-def build_map(bands: pd.DataFrame, full: pd.DataFrame):
-    geo = slim_geojson(bands, full)
-    tpl = (TEMPLATES / "map.html").read_text()
-    html = tpl.replace("__GEODATA__", json.dumps(geo, separators=(",", ":")))
+def build_map(bands: pd.DataFrame, affordable: pd.DataFrame) -> None:
+    """Write the interactive map page.
+
+    Args:
+        bands: One row per council with a column per band and an ONS code.
+        affordable: One row per council with earnings and derived ratios.
+    """
+    geo = slim_geojson(bands, affordable)
+    template = (TEMPLATES / "map.html").read_text()
+    html = template.replace("__GEODATA__", json.dumps(geo, separators=(",", ":")))
     (OUT_PAGES / "map.html").write_text(html)
 
-    n_band = sum(1 for f in geo["features"] if f["properties"]["band_d"] is not None)
-    n_aff = sum(1 for f in geo["features"] if f["properties"]["pct_income"] is not None)
-    print(f"  map.html     {len(geo['features'])} features · "
-          f"{n_band} with band data · {n_aff} with affordability · "
-          f"{round(len(html)/1024)} KB")
+    with_bands = sum(
+        1 for feature in geo["features"] if feature["properties"]["band_d"] is not None
+    )
+    with_affordability = sum(
+        1
+        for feature in geo["features"]
+        if feature["properties"]["pct_income"] is not None
+    )
+    feature_count = len(geo["features"])
+    print(
+        f"  map.html     {feature_count} features, "
+        f"{with_bands} with band data, {with_affordability} with affordability, "
+        f"{round(len(html) / 1024)} KB"
+    )
 
 
-def build_table(full: pd.DataFrame):
-    rows = full[["nation", "authority", "LAD24CD", "band_a", "band_b", "band_c",
-                 "band_d", "band_e", "band_f", "band_g", "band_h",
-                 "median", "band_d_pct_pay", "band_h_pct_pay",
-                 "mult_e", "mult_h"]].copy()
+def build_table(affordable: pd.DataFrame) -> None:
+    """Write the sortable data table page.
+
+    Args:
+        affordable: One row per council with earnings and derived ratios.
+    """
+    rows = affordable[TABLE_COLUMNS].copy()
     rows = rows.rename(columns={"LAD24CD": "ons_code", "median": "median_pay"})
     rows = rows.sort_values(["nation", "authority"]).round(2)
-    tpl = (TEMPLATES / "table.html").read_text()
-    html = tpl.replace("__ROWDATA__",
-                       json.dumps(rows.to_dict(orient="records"), separators=(",", ":")))
+
+    template = (TEMPLATES / "table.html").read_text()
+    html = template.replace(
+        "__ROWDATA__",
+        json.dumps(rows.to_dict(orient="records"), separators=(",", ":")),
+    )
     (OUT_PAGES / "table.html").write_text(html)
-    print(f"  table.html   {len(rows)} rows · {round(len(html)/1024)} KB")
+    print(f"  table.html   {len(rows)} rows, {round(len(html) / 1024)} KB")
 
 
-def main():
+def main() -> None:
+    """Build both pages from the processed data."""
     print("Building pages ->", OUT_PAGES)
-    bands = pd.read_csv(DATA_PROC / "uk_council_tax_full.csv")
-    # the full 350-council band table (before the earnings join dropped two)
-    wide = pd.read_csv(DATA_PROC / "uk_bands_2026-27.csv")
-    wide = wide.pivot_table(index=["nation", "authority"], columns="band",
-                            values="charge_gbp", aggfunc="first").reset_index()
-    wide.columns = [f"band_{c.lower()}" if c in list("ABCDEFGHI") else c
-                    for c in wide.columns]
 
-    # attach ONS codes from the boundary attribute table
-    lad = json.loads((DATA_RAW / "lad_attributes.json").read_text())
-    lad_df = pd.DataFrame([f["attributes"] for f in lad["features"]])
-    lad_df["key"] = lad_df.LAD24NM.map(norm_name)
-    lad_df["nation"] = lad_df.LAD24CD.str[0].map(
-        {"E": "England", "W": "Wales", "S": "Scotland", "N": "Northern Ireland"})
+    affordable = pd.read_csv(DATA_PROC / "uk_council_tax_full.csv")
+
+    # The full 350-council band table, before the earnings join dropped two.
+    bands = pd.read_csv(DATA_PROC / "uk_bands_2026-27.csv")
+    wide = bands.pivot_table(
+        index=["nation", "authority"], columns="band", values="charge_gbp",
+        aggfunc="first",
+    ).reset_index()
+    wide.columns = [
+        f"band_{column.lower()}" if column in list("ABCDEFGHI") else column
+        for column in wide.columns
+    ]
+
+    boundaries = json.loads((DATA_RAW / "lad_attributes.json").read_text())
+    boundary_frame = pd.DataFrame(
+        [feature["attributes"] for feature in boundaries["features"]]
+    )
+    boundary_frame["key"] = boundary_frame.LAD24NM.map(norm_name)
+    boundary_frame["nation"] = boundary_frame.LAD24CD.str[0].map(
+        {"E": "England", "W": "Wales", "S": "Scotland", "N": "Northern Ireland"}
+    )
     wide["key"] = wide.authority.map(norm_name)
-    wide = wide.merge(lad_df[["LAD24CD", "key", "nation"]],
-                      on=["key", "nation"], how="left")
+    wide = wide.merge(
+        boundary_frame[["LAD24CD", "key", "nation"]],
+        on=["key", "nation"],
+        how="left",
+    )
 
-    build_map(wide, bands)
-    build_table(bands)
+    build_map(wide, affordable)
+    build_table(affordable)
 
 
 if __name__ == "__main__":

@@ -1,7 +1,9 @@
-"""Parse each raw source into tidy long-format CSVs in data/processed/.
+"""Parse each raw source into tidy long-format CSVs in data/processed.
 
-Every parser returns columns: nation, authority, year, band, charge_gbp, source.
+Every parser returns the columns ``nation``, ``authority``, ``year``, ``band``,
+``charge_gbp`` and ``source``.
 """
+
 import re
 import sys
 import warnings
@@ -12,34 +14,50 @@ from xml.etree import ElementTree as ET
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from config import (BANDS, DATA_PROC, DATA_RAW, NATION_BY_PREFIX,  # noqa: E402
-                    ONS_RECODE, norm_name)
+from config import DATA_PROC, DATA_RAW, NATION_BY_PREFIX  # noqa: E402
 
 warnings.filterwarnings("ignore")
 
-ODF_T = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
-ODF_TX = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+ODF_TABLE = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
+ODF_TEXT = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
+
+# Cap on expanding ODS repeated-cell runs; genuine data never repeats this far.
+MAX_CELL_REPEAT: int = 200
+
+BAND_LETTERS: str = "ABCDEFGH"
 
 
-# ------------------------------------------------------------------ helpers
 def read_ods_sheet(path: Path, sheet: str) -> list[list[str]]:
-    """Read one ODS sheet as a list of rows.
+    """Read a single ODS sheet as a list of rows of strings.
 
-    ODS stores runs of empty cells as a single cell with a large
-    number-columns-repeated. Expanding those faithfully pads the header and
-    breaks positional alignment, so cap the expansion.
+    ODS stores runs of empty cells as one cell carrying a large
+    ``number-columns-repeated``. Expanding those faithfully pads the header and
+    breaks positional alignment, so the expansion is capped and trailing empties
+    are stripped.
+
+    Args:
+        path: Path to the ODS workbook.
+        sheet: Exact sheet name to read.
+
+    Returns:
+        One list of cell strings per row, with trailing empties removed.
+
+    Raises:
+        KeyError: If the sheet is not present in the workbook.
     """
     root = ET.fromstring(zipfile.ZipFile(path).read("content.xml"))
-    for table in root.iter(ODF_T + "table"):
-        if table.get(ODF_T + "name") != sheet:
+    for table in root.iter(ODF_TABLE + "table"):
+        if table.get(ODF_TABLE + "name") != sheet:
             continue
-        rows = []
-        for r in table.iter(ODF_T + "table-row"):
-            cells = []
-            for c in r.iter(ODF_T + "table-cell"):
-                rep = int(c.get(ODF_T + "number-columns-repeated") or 1)
-                txt = "".join(n.text or "" for n in c.iter(ODF_TX + "p"))
-                cells.extend([txt] * (rep if rep <= 200 else 1))
+        rows: list[list[str]] = []
+        for row in table.iter(ODF_TABLE + "table-row"):
+            cells: list[str] = []
+            for cell in row.iter(ODF_TABLE + "table-cell"):
+                repeat = int(cell.get(ODF_TABLE + "number-columns-repeated") or 1)
+                text = "".join(
+                    node.text or "" for node in cell.iter(ODF_TEXT + "p")
+                )
+                cells.extend([text] * (repeat if repeat <= MAX_CELL_REPEAT else 1))
             while cells and cells[-1] == "":
                 cells.pop()
             rows.append(cells)
@@ -47,189 +65,268 @@ def read_ods_sheet(path: Path, sheet: str) -> list[list[str]]:
     raise KeyError(f"sheet {sheet!r} not in {path.name}")
 
 
-def tidy_year(h: str) -> str | None:
-    m = re.match(r"(\d{4}) to (\d{4})", str(h).strip())
-    return f"{m.group(1)}-{m.group(2)[2:]}" if m else None
+def tidy_year(header: str) -> str | None:
+    """Convert a header label such as ``1993 to 1994`` to ``1993-94``.
+
+    Args:
+        header: A column header from a statistical workbook.
+
+    Returns:
+        The financial year in ``YYYY-YY`` form, or None if the header is not a
+        year label.
+    """
+    match = re.match(r"(\d{4}) to (\d{4})", str(header).strip())
+    if not match:
+        return None
+    return f"{match.group(1)}-{match.group(2)[2:]}"
 
 
-# ------------------------------------------------------------------ England
 def parse_england_bands(path: Path) -> pd.DataFrame:
-    """MHCLG Tables 1-9, sheet Table_9 = area council tax by band, all authorities."""
-    d = pd.read_excel(path, sheet_name="Table_9", engine="odf", header=None)
-    body = d.iloc[3:].copy()
-    body.columns = [str(c).strip() for c in d.iloc[2].tolist()]
+    """Parse MHCLG Tables 1 to 9, sheet ``Table_9``, into a long table.
+
+    ``Table_9`` holds area council tax by band for every billing authority. It
+    is not linked from the live-tables index page, which advertises Band D only.
+
+    Args:
+        path: Path to the Tables 1 to 9 workbook.
+
+    Returns:
+        One row per authority and band, with the charge in pounds.
+    """
+    frame = pd.read_excel(path, sheet_name="Table_9", engine="odf", header=None)
+    body = frame.iloc[3:].copy()
+    body.columns = [str(column).strip() for column in frame.iloc[2].tolist()]
     body = body[body["Authority"].notna()]
 
-    out = []
-    for _, r in body.iterrows():
-        for b in "ABCDEFGH":
-            col = f"Band {b}"
-            if col not in body.columns or pd.isna(r[col]):
+    records: list[dict[str, object]] = []
+    for _, row in body.iterrows():
+        for band in BAND_LETTERS:
+            column = f"Band {band}"
+            if column not in body.columns or pd.isna(row[column]):
                 continue
-            out.append({
-                "nation": "England",
-                "authority": str(r["Authority"]).strip(),
-                "ons_code": str(r["ONS Code"]).strip(),
-                "year": "2026-27",
-                "band": b,
-                "charge_gbp": round(float(r[col]), 2),
-                "source": "MHCLG Tables 1-9 (Table_9)",
-            })
-    return pd.DataFrame(out)
+            records.append(
+                {
+                    "nation": "England",
+                    "authority": str(row["Authority"]).strip(),
+                    "ons_code": str(row["ONS Code"]).strip(),
+                    "year": "2026-27",
+                    "band": band,
+                    "charge_gbp": round(float(row[column]), 2),
+                    "source": "MHCLG Tables 1-9 (Table_9)",
+                }
+            )
+    return pd.DataFrame(records)
 
 
 def parse_england_band_d(path: Path) -> pd.DataFrame:
-    """Live table: Band D 1993-94 onward, incl/excl parish, and area total.
+    """Parse the Band D live table covering 1993-94 onward.
 
-    The header carries a trailing 'Notes' label that the data rows omit; drop it
-    or every year column shifts by one.
+    The table is published as three parallel sheets: including parish precepts,
+    excluding them, and the area total. The header carries a trailing ``Notes``
+    label that the data rows omit, so it is dropped before columns are mapped by
+    position; otherwise every year shifts by one.
+
+    Args:
+        path: Path to the Band D live table workbook.
+
+    Returns:
+        One row per authority, year and measure, with the charge in pounds.
     """
-    frames = []
-    for sheet, measure in [("inc_PP", "band_d_incl_parish"),
-                           ("exc_PP", "band_d_excl_parish"),
-                           ("Area_CT", "band_d_area_total")]:
-        rows = read_ods_sheet(path, sheet)
-        hdr = rows[2]
-        if hdr and str(hdr[-1]).strip().lower() == "notes":
-            hdr = hdr[:-1]
-        year_pos = [i for i, h in enumerate(hdr) if tidy_year(h)]
-        years = [tidy_year(hdr[i]) for i in year_pos]
-        first = year_pos[0]
+    sheets = [
+        ("inc_PP", "band_d_incl_parish"),
+        ("exc_PP", "band_d_excl_parish"),
+        ("Area_CT", "band_d_area_total"),
+    ]
+    frames: list[pd.DataFrame] = []
 
-        recs = []
-        for r in rows[3:]:
-            if not r or len(r) < 3:
+    for sheet, measure in sheets:
+        rows = read_ods_sheet(path, sheet)
+        header = rows[2]
+        if header and str(header[-1]).strip().lower() == "notes":
+            header = header[:-1]
+
+        year_positions = [
+            index for index, label in enumerate(header) if tidy_year(label)
+        ]
+        years = [tidy_year(header[index]) for index in year_positions]
+        first_year_column = year_positions[0]
+
+        records: list[dict[str, object]] = []
+        for row in rows[3:]:
+            if not row or len(row) < 3:
                 continue
-            auth = r[2].strip() if len(r) > 2 else ""
-            if not auth:
+            authority = row[2].strip()
+            if not authority:
                 continue
-            for k, yr in enumerate(years):
-                idx = first + k
-                if idx >= len(r):
+            for offset, year in enumerate(years):
+                index = first_year_column + offset
+                if index >= len(row):
                     continue
-                raw = r[idx].strip()
+                raw = row[index].strip()
                 try:
-                    val = float(raw.replace(",", ""))
+                    value = float(raw.replace(",", ""))
                 except ValueError:
-                    continue  # '[z]' / '[x]' sentinels
-                recs.append({
-                    "nation": "England",
-                    "authority": auth,
-                    "ons_code": r[1].strip() if len(r) > 1 else "",
-                    "year": yr,
-                    "band": "D",
-                    "measure": measure,
-                    "charge_gbp": val,
-                    "source": "MHCLG Band D live table",
-                })
-        frames.append(pd.DataFrame(recs))
+                    continue  # suppression and not-applicable sentinels
+                records.append(
+                    {
+                        "nation": "England",
+                        "authority": authority,
+                        "ons_code": row[1].strip() if len(row) > 1 else "",
+                        "year": year,
+                        "band": "D",
+                        "measure": measure,
+                        "charge_gbp": value,
+                        "source": "MHCLG Band D live table",
+                    }
+                )
+        frames.append(pd.DataFrame(records))
+
     return pd.concat(frames, ignore_index=True)
 
 
-# ------------------------------------------------------------------ Wales
 def parse_wales(path: Path) -> pd.DataFrame:
-    d = pd.read_csv(path)
-    d = d[d["Authority"] != "Total Unitary Authorities"]
-    out = []
-    for _, r in d.iterrows():
+    """Parse the StatsWales council tax levels export.
+
+    The export includes a ``Total Unitary Authorities`` aggregate row, which is
+    dropped so that per-authority counts stay correct.
+
+    Args:
+        path: Path to the StatsWales CSV export.
+
+    Returns:
+        One row per authority, year and band, covering 1996-97 onward.
+    """
+    frame = pd.read_csv(path)
+    frame = frame[frame["Authority"] != "Total Unitary Authorities"]
+
+    records: list[dict[str, object]] = []
+    for _, row in frame.iterrows():
         try:
-            v = float(r["Data values"])
+            value = float(row["Data values"])
         except (TypeError, ValueError):
             continue
-        out.append({
-            "nation": "Wales",
-            "authority": str(r["Authority"]).strip(),
-            "ons_code": "",
-            "year": str(r["Year"]),
-            "band": str(r["Band"]),
-            "charge_gbp": round(v, 2),
-            "source": "StatsWales API v2",
-        })
-    return pd.DataFrame(out)
+        records.append(
+            {
+                "nation": "Wales",
+                "authority": str(row["Authority"]).strip(),
+                "ons_code": "",
+                "year": str(row["Year"]),
+                "band": str(row["Band"]),
+                "charge_gbp": round(value, 2),
+                "source": "StatsWales API v2",
+            }
+        )
+    return pd.DataFrame(records)
 
 
-# ------------------------------------------------------------------ Scotland
 def parse_scotland(path: Path) -> pd.DataFrame:
-    d = pd.read_excel(path, header=None)
-    hdr_i = None
-    for i in range(min(15, len(d))):
-        vals = [str(x) for x in d.iloc[i, :10] if pd.notna(x)]
-        if sum(1 for b in "ABCDEFGH" if f"Band {b}" in vals) >= 6:
-            hdr_i = i
-            break
-    if hdr_i is None:
-        raise ValueError("Scotland: could not locate the Band A-H header row")
+    """Parse the Scottish Government Council Tax by Band workbook.
 
-    out = []
-    for i in range(hdr_i + 1, len(d)):
-        name = d.iloc[i, 0]
+    The workbook appends prose notes below the table, including a row reading
+    ``Excludes Water and Sewerage``. Those rows are filtered out or they parse
+    as authorities and inflate the council count.
+
+    Args:
+        path: Path to the CTAS Council Tax by Band workbook.
+
+    Returns:
+        One row per council and band for 2026-27.
+
+    Raises:
+        ValueError: If the Band A to H header row cannot be located.
+    """
+    frame = pd.read_excel(path, header=None)
+
+    header_index: int | None = None
+    for index in range(min(15, len(frame))):
+        values = [str(cell) for cell in frame.iloc[index, :10] if pd.notna(cell)]
+        present = sum(1 for band in BAND_LETTERS if f"Band {band}" in values)
+        if present >= 6:
+            header_index = index
+            break
+    if header_index is None:
+        raise ValueError("Scotland: could not locate the Band A to H header row")
+
+    skip_prefixes = ("ratio", "scotland", "source", "valuation", "excludes")
+    records: list[dict[str, object]] = []
+
+    for index in range(header_index + 1, len(frame)):
+        name = frame.iloc[index, 0]
         if not isinstance(name, str):
             continue
         name = name.strip()
-        if not name or name.lower().startswith(
-                ("ratio", "scotland", "source", "valuation", "excludes")):
+        if not name or name.lower().startswith(skip_prefixes):
             continue
         try:
-            vals = [float(d.iloc[i, j]) for j in range(1, 9)]
+            values = [float(frame.iloc[index, column]) for column in range(1, 9)]
         except (TypeError, ValueError):
             continue
-        if vals[3] <= 0:
+        if values[3] <= 0:
             continue
-        for b, v in zip("ABCDEFGH", vals):
-            out.append({
-                "nation": "Scotland",
-                "authority": name,
-                "ons_code": "",
-                "year": "2026-27",
-                "band": b,
-                "charge_gbp": round(v, 2),
-                "source": "Scottish Government CTAS",
-            })
-    return pd.DataFrame(out)
+        for band, value in zip(BAND_LETTERS, values):
+            records.append(
+                {
+                    "nation": "Scotland",
+                    "authority": name,
+                    "ons_code": "",
+                    "year": "2026-27",
+                    "band": band,
+                    "charge_gbp": round(value, 2),
+                    "source": "Scottish Government CTAS",
+                }
+            )
+    return pd.DataFrame(records)
 
 
-# ------------------------------------------------------------------ earnings
 def parse_ashe(path: Path) -> pd.DataFrame:
-    """ASHE Table 8.7a, sheet 'All' — median gross annual pay by LA of residence."""
-    d = pd.read_excel(path, sheet_name="All", header=None)
-    d = d.iloc[5:, [0, 1, 3, 5]].copy()
-    d.columns = ["name", "code", "median", "mean"]
-    d["code"] = d["code"].astype(str).str.replace("'", "", regex=False).str.strip()
-    d = d[d["code"].str.match(r"^(E0[6-9]|S12|W06)\d{6}$")].copy()
-    d["median"] = pd.to_numeric(d["median"], errors="coerce")
-    d["mean"] = pd.to_numeric(d["mean"], errors="coerce")
-    d["nation"] = d["code"].str[0].map(NATION_BY_PREFIX)
-    return d[["nation", "name", "code", "median", "mean"]]
+    """Parse ASHE Table 8.7a, sheet ``All``, for median gross annual pay.
+
+    Args:
+        path: Path to the ASHE annual pay workbook.
+
+    Returns:
+        One row per local authority with its ONS code and median and mean pay.
+    """
+    frame = pd.read_excel(path, sheet_name="All", header=None)
+    frame = frame.iloc[5:, [0, 1, 3, 5]].copy()
+    frame.columns = ["name", "code", "median", "mean"]
+    # The published codes carry a leading apostrophe as a text marker.
+    frame["code"] = frame["code"].astype(str).str.replace("\u2019", "", regex=False)
+    frame["code"] = frame["code"].str.replace("'", "", regex=False).str.strip()
+    frame = frame[frame["code"].str.match(r"^(E0[6-9]|S12|W06)\d{6}$")].copy()
+    frame["median"] = pd.to_numeric(frame["median"], errors="coerce")
+    frame["mean"] = pd.to_numeric(frame["mean"], errors="coerce")
+    frame["nation"] = frame["code"].str[0].map(NATION_BY_PREFIX)
+    return frame[["nation", "name", "code", "median", "mean"]]
 
 
-# ------------------------------------------------------------------ driver
-def main():
+def main() -> None:
+    """Parse every raw source and write the processed CSVs."""
     print("Parsing raw -> processed")
 
-    eng = parse_england_bands(DATA_RAW / "england_tables_1-9_2026-27.ods")
-    eng.to_csv(DATA_PROC / "england_bands_2026-27.csv", index=False)
-    print(f"  england_bands_2026-27.csv      {len(eng):>6,} rows")
+    england = parse_england_bands(DATA_RAW / "england_tables_1-9_2026-27.ods")
+    england.to_csv(DATA_PROC / "england_bands_2026-27.csv", index=False)
+    print(f"  england_bands_2026-27.csv      {len(england):>6,} rows")
 
-    engd = parse_england_band_d(DATA_RAW / "england_band_d_2026-27.ods")
-    engd.to_csv(DATA_PROC / "england_band_d_1993-2027.csv", index=False)
-    print(f"  england_band_d_1993-2027.csv   {len(engd):>6,} rows")
+    band_d = parse_england_band_d(DATA_RAW / "england_band_d_2026-27.ods")
+    band_d.to_csv(DATA_PROC / "england_band_d_1993-2027.csv", index=False)
+    print(f"  england_band_d_1993-2027.csv   {len(band_d):>6,} rows")
 
-    wal = parse_wales(DATA_RAW / "wales_bands_1996-2027.csv")
-    wal.to_csv(DATA_PROC / "wales_bands_1996-2027.csv", index=False)
-    print(f"  wales_bands_1996-2027.csv      {len(wal):>6,} rows")
+    wales = parse_wales(DATA_RAW / "wales_bands_1996-2027.csv")
+    wales.to_csv(DATA_PROC / "wales_bands_1996-2027.csv", index=False)
+    print(f"  wales_bands_1996-2027.csv      {len(wales):>6,} rows")
 
-    sco = parse_scotland(DATA_RAW / "scotland_bands_2026-27.xlsx")
-    sco.to_csv(DATA_PROC / "scotland_bands_2026-27.csv", index=False)
-    print(f"  scotland_bands_2026-27.csv     {len(sco):>6,} rows")
+    scotland = parse_scotland(DATA_RAW / "scotland_bands_2026-27.xlsx")
+    scotland.to_csv(DATA_PROC / "scotland_bands_2026-27.csv", index=False)
+    print(f"  scotland_bands_2026-27.csv     {len(scotland):>6,} rows")
 
     ashe = parse_ashe(DATA_RAW / "ashe_annual_pay_2025.xlsx")
     ashe.to_csv(DATA_PROC / "ashe_earnings_2025.csv", index=False)
     print(f"  ashe_earnings_2025.csv         {len(ashe):>6,} rows")
 
-    # combined long table for the current year
-    cur = pd.concat([eng, wal, sco], ignore_index=True)
-    cur.to_csv(DATA_PROC / "uk_bands_2026-27.csv", index=False)
-    print(f"  uk_bands_2026-27.csv           {len(cur):>6,} rows")
+    combined = pd.concat([england, wales, scotland], ignore_index=True)
+    combined.to_csv(DATA_PROC / "uk_bands_2026-27.csv", index=False)
+    print(f"  uk_bands_2026-27.csv           {len(combined):>6,} rows")
 
 
 if __name__ == "__main__":
