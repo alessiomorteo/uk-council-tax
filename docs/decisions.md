@@ -223,3 +223,40 @@ Allerdale, Carlisle, Copeland, Barrow-in-Furness, Eden and others merged away in
 
 The `CTYMET` rows are a second trap: they are counties and metropolitan counties,
 which sit above districts and double-count the same properties.
+
+---
+
+## Business rates get their own pages, not a tab
+
+**Decision:** publish `rates_map.html` and `rates_table.html` as separate pages
+rather than adding views to the council tax map.
+
+**Why:** business rates are a different tax on a different object. Council tax is
+levied on dwellings through a local band ladder; business rates are levied on
+non-domestic property through a national multiplier, and much of the yield is
+pooled and redistributed rather than kept by the billing authority. Putting them
+on the same map would invite the reader to add them together, which is
+meaningless.
+
+The two also have different coverage: council tax has 350 councils with complete
+band data, business rates has 350 councils but with rateable value on a different
+vintage and relief value on a third. A shared map would have to hide that.
+
+**Rejected:** a fifth tab on the existing map. The council tax map already has six
+views and the measures do not belong on one axis.
+
+## Unify relief value across the three nations
+
+**Decision:** build a single `relief_value` column from whichever column each
+nation publishes.
+
+**Why:** England publishes three separate relief values (small business, empty
+property, other discretionary), Wales publishes one mandatory-relief total, and
+Scotland publishes one relief-value total. Without unification the relief panels
+covered only Scotland, 32 of 350 councils, which reads as missing data rather
+than as a mapping problem.
+
+**Caveat recorded in the page:** England's three published values are a partial
+total — they cover small business, empty property and other discretionary, not
+every relief type. The relief-share measure is therefore indicative, and the page
+says so.

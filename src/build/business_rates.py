@@ -296,6 +296,29 @@ def main() -> None:
         columns=["voa_rateable_value", "voa_rateable_properties"]
     )
 
+    # Unify relief value. Each nation publishes it in a different column:
+    # England as three separate values (SBRR, empty property, other
+    # discretionary), Wales as a single mandatory-relief total, Scotland as one
+    # relief-value total. Without this the relief panels cover only Scotland.
+    england_relief = (
+        combined["value_sbrr"].fillna(0)
+        + combined["value_empty_relief"].fillna(0)
+        + combined["value_other_discretionary"].fillna(0)
+    )
+    combined["relief_value_total"] = england_relief.where(
+        combined["nation"] == "England"
+    )
+    combined["relief_value_total"] = combined["relief_value_total"].fillna(
+        combined["relief_mandatory"]
+    )
+    combined["relief_value_total"] = combined["relief_value_total"].fillna(
+        combined["relief_value"]
+    )
+    # England's three published values sum to a partial total: they cover SBRR,
+    # empty property and other discretionary, not every relief type.
+    combined["relief_value"] = combined["relief_value_total"]
+    combined = combined.drop(columns=["relief_value_total"])
+
     columns = [
         "nation",
         "authority",

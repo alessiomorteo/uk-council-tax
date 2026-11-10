@@ -209,6 +209,9 @@ def build_table(affordable: pd.DataFrame) -> None:
     ).round(0)
     rows["tax_base_published"] = rows.tax_base_published.round(0)
     rows = rows.sort_values(["nation", "authority"]).round(2)
+    # NaN is not valid JSON: json.dumps writes a bare NaN token, which the
+    # browser parses as an undefined identifier rather than as null.
+    rows = rows.astype(object).where(pd.notna(rows), None)
 
     template = (TEMPLATES / "table.html").read_text()
     html = template.replace(
@@ -217,6 +220,121 @@ def build_table(affordable: pd.DataFrame) -> None:
     )
     (OUT_PAGES / "table.html").write_text(html)
     print(f"  table.html   {len(rows)} rows, {round(len(html) / 1024)} KB")
+
+
+def build_rates_pages(rates: pd.DataFrame) -> None:
+    """Write the business rates map and table pages.
+
+    Business rates are a separate tax with a separate geography, so they get
+    their own pages rather than a tab on the council tax map. Designated
+    utilities are excluded: they are not a council area.
+
+    Args:
+        rates: The council-level business rates table.
+    """
+    councils = rates[rates.authority_type != "UTIL"].copy()
+    councils["rv_per_hdit"] = councils["rateable_value"] / councils["hdits_total"]
+    councils["relief_share"] = councils["relief_value"] / councils["rateable_value"]
+
+    # Attach the boundary geometry, keyed on ONS code where available and on
+    # normalised name for Wales and Scotland, whose rate rows carry no code.
+    geo = json.loads((DATA_RAW / "lad_boundaries.geojson").read_text())
+    by_code = {
+        row.ons_code: row
+        for _, row in councils.iterrows()
+        if isinstance(row.ons_code, str) and row.ons_code
+    }
+    by_name = {norm_name(str(row.authority)): row for _, row in councils.iterrows()}
+
+    features: list[dict[str, Any]] = []
+    for feature in geo["features"]:
+        code = feature["properties"]["LAD24CD"]
+        name = feature["properties"]["LAD24NM"]
+        row = by_code.get(code)
+        if row is None:
+            row = by_name.get(norm_name(name))
+
+        properties: dict[str, Any] = {
+            "code": code,
+            "name": name,
+            "nation": feature["properties"].get("LAD24CD", "")[:1].translate(
+                str.maketrans({"E": "England", "W": "Wales", "S": "Scotland"})
+            ),
+        }
+        if row is not None:
+            for column in [
+                "rateable_value",
+                "hdits_total",
+                "rv_per_hdit",
+                "relief_value",
+                "relief_share",
+            ]:
+                value = row.get(column)
+                properties[column] = (
+                    round(float(value), 4) if pd.notna(value) else None
+                )
+        else:
+            for column in [
+                "rateable_value",
+                "hdits_total",
+                "rv_per_hdit",
+                "relief_value",
+                "relief_share",
+            ]:
+                properties[column] = None
+
+        geometry = feature["geometry"]
+        geometry["coordinates"] = round_coordinates(geometry["coordinates"])
+        features.append(
+            {"type": "Feature", "properties": properties, "geometry": geometry}
+        )
+
+    collection = {"type": "FeatureCollection", "features": features}
+
+    template = (TEMPLATES / "rates_map.html").read_text()
+    html = template.replace(
+        "__GEODATA__", json.dumps(collection, separators=(",", ":"))
+    )
+    (OUT_PAGES / "rates_map.html").write_text(html)
+
+    with_data = sum(
+        1 for f in features if f["properties"]["rateable_value"] is not None
+    )
+    print(
+        f"  rates_map.html   {len(features)} features, {with_data} with rates data, "
+        f"{round(len(html) / 1024)} KB"
+    )
+
+    # Table page. Gross rates payable is dropped: only Wales publishes it, so a
+    # column that is empty for 328 of 350 councils is noise rather than data.
+    rows = councils.copy()
+    rate_columns = [
+        "nation",
+        "authority",
+        "ons_code",
+        "hdits_total",
+        "rateable_value",
+        "rv_per_hdit",
+        "relief_value",
+        "relief_share",
+        "total_sbrr",
+        "value_sbrr",
+        "value_empty_relief",
+        "total_discretionary",
+    ]
+    rows = rows[rate_columns].sort_values(["nation", "authority"]).round(4)
+    # NaN is not valid JSON: json.dumps writes a bare NaN token, which the
+    # browser parses as an undefined identifier rather than as null. Convert to
+    # None so the page receives real nulls and renders an em dash.
+    rows = rows.astype(object).where(pd.notna(rows), None)
+
+    table_template = (TEMPLATES / "rates_table.html").read_text()
+    table_html = table_template.replace(
+        "__ROWDATA__",
+        json.dumps(rows.to_dict(orient="records"), separators=(",", ":")),
+    )
+    (OUT_PAGES / "rates_table.html").write_text(table_html)
+    print(f"  rates_table.html {len(rows)} rows, {round(len(table_html) / 1024)} KB")
 
 
 def main() -> None:
@@ -253,6 +371,7 @@ def main() -> None:
 
     build_map(wide, affordable)
     build_table(affordable)
+    build_rates_pages(pd.read_csv(DATA_PROC / "business_rates.csv"))
 
 
 if __name__ == "__main__":

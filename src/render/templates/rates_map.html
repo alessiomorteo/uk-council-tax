@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Business Rates Across Great Britain</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --line:#e5e5e5; --accent:#2d63a0;
+          --card:#fff; --bg:#fafafa; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:26px 22px 40px; font-family:-apple-system,
+         BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink);
+         background:var(--bg); }
+  .wrap { max-width:1500px; margin:0 auto; }
+  h1 { font-size:23px; margin:0 0 4px; letter-spacing:-.02em; }
+  .sub { color:var(--muted); font-size:13.5px; margin-bottom:14px; }
+  .nav { font-size:12.5px; margin-bottom:16px; }
+  .nav a { color:var(--accent); text-decoration:none; margin-right:14px; }
+  .nav a:hover { text-decoration:underline; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
+  .tab { font-size:12px; padding:5px 11px; border-radius:20px;
+         border:1px solid var(--line); background:#fff; cursor:pointer;
+         font-weight:600; color:#444; }
+  .tab.on { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
+  .tab.link { text-decoration:none; margin-left:auto; border-style:dashed;
+              color:var(--accent); border-color:var(--accent); }
+  .tab.link:hover { background:var(--accent); color:#fff; }
+  #mapbox { position:relative; background:#fff; border:1px solid var(--line);
+            border-radius:10px; overflow:hidden; }
+  #map { display:block; width:100%; }
+  #map path { cursor:pointer; transition:opacity .12s; }
+  #map path:hover { opacity:.72; }
+  #tip { position:fixed; pointer-events:none; opacity:0; transition:opacity .12s;
+         background:rgba(20,20,20,.94); color:#fff; padding:8px 11px;
+         border-radius:7px; font-size:12px; line-height:1.5; z-index:99;
+         max-width:280px; }
+  .legend { display:flex; flex-wrap:wrap; gap:9px; margin-top:10px;
+            font-size:11.5px; color:#555; }
+  .legend-row { display:flex; align-items:center; gap:5px; }
+  .sw { width:13px; height:11px; border-radius:2px; display:inline-block;
+        border:1px solid rgba(0,0,0,.12); }
+  #stat { font-size:12px; color:var(--muted); margin-top:8px; }
+  #note { font-size:12px; color:#555; margin-top:10px; line-height:1.6;
+          background:#fff; border:1px solid var(--line); border-radius:8px;
+          padding:11px 13px; }
+  .caveats { margin-top:22px; background:#fff; border:1px solid var(--line);
+             border-radius:10px; padding:16px 20px; font-size:12.5px;
+             color:#444; line-height:1.7; }
+  .caveats h3 { font-size:13.5px; margin:0 0 8px; }
+  .caveats ul { margin:0 0 12px; padding-left:18px; }
+  .caveats li { margin-bottom:6px; }
+  .sources { margin-top:16px; font-size:11.5px; color:var(--muted);
+             line-height:1.7; }
+  @media (max-width:640px){
+    body { padding:16px 12px 30px; }
+    h1 { font-size:19px; }
+    .tab { font-size:11.5px; padding:5px 9px; }
+    .tab.link { margin-left:0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Business Rates Across Great Britain</h1>
+  <div class="sub">Non-domestic rates by billing authority — click any council for detail</div>
+  <div class="nav">
+    <a href="index.html">Home</a>
+    <a href="map.html">Council tax map</a>
+    <a href="table.html">Council tax table</a>
+  </div>
+
+  <div class="tabs" id="tabs">
+    <a class="tab link" href="rates_table.html">View data table →</a>
+    <div class="tab on" data-m="rv_per_hdit">Rateable value per premises (£)</div>
+    <div class="tab" data-m="rateable_value">Total rateable value (£)</div>
+    <div class="tab" data-m="hdits_total">Business premises (count)</div>
+    <div class="tab" data-m="relief_share">Relief as share of rateable value</div>
+  </div>
+
+  <div id="mapbox"><svg id="map"></svg></div>
+  <div class="legend" id="legend"></div>
+  <div id="stat"></div>
+  <div id="note"></div>
+
+  <div class="caveats">
+    <h3>Caveats and limitations</h3>
+    <ul>
+      <li><strong>Three different sources, three different vintages.</strong> Relief counts and values come from the MHCLG NNDR1 supplementary workbook (England, 2026-27 forecast), StatsWales estimates (Wales, 2026-27) and the Scottish Government NDR reliefs publication (Scotland, 2025-26 snapshot). Rateable value is the comparable measure: VOA stock of properties at 31 March 2025 for England and Wales, Scottish valuation roll at 1 June 2025 for Scotland.</li>
+      <li><strong>Business rates are not council tax.</strong> They are levied on non-domestic property, set nationally through a multiplier rather than locally through a band ladder, and much of the yield is pooled and redistributed rather than kept by the billing authority. The two cannot be added together.</li>
+      <li><strong>Rateable value is not the bill.</strong> The bill is rateable value times the multiplier, less any relief. Rateable value measures the size of the business base, not the revenue raised from it.</li>
+      <li><strong>England does not publish rateable value in NNDR1.</strong> That figure comes from a separate VOA release, which is why it carries a different date.</li>
+      <li><strong>Scotland's designated utilities</strong> — 54 properties and £799m of rateable value — are valued centrally because they span council boundaries. They are excluded from this map rather than assigned to any council.</li>
+      <li><strong>Two English authorities</strong>, Wigan and Woking, report no hereditament count in the source (marked not applicable).</li>
+      <li><strong>Relief share</strong> compares relief value against rateable value. Because the relief and rateable value figures come from different years and different definitions, treat it as indicative rather than exact.</li>
+    </ul>
+
+    <div class="sources">
+      <strong>Sources:</strong> Ministry of Housing, Communities and Local Government, <em>National non-domestic rates collected by councils: 2026-27 forecast</em> (NNDR1 supplementary tables); Valuation Office Agency, <em>Non-domestic rating: stock of properties 2025</em>; Welsh Government / StatsWales, <em>Non-domestic rates estimates by local authority</em>; Scottish Government, <em>Non-domestic rates relief statistics 2025</em>. All Open Government Licence v3.0. Boundaries: Office for National Statistics, <em>Local Authority Districts (December 2024) Boundaries UK BUC</em>. Contains OS data © Crown copyright and database right 2025.
+    </div>
+  </div>
+
+</div>
+
+<div id="tip"></div>
+
+<script>
+const GEO = __GEODATA__;
+
+const SCALES = {
+  rv_per_hdit: {
+    label: "Rateable value per premises (£)",
+    buckets: [12000,16000,20000,25000,30000,40000,60000,100000],
+    colors: ["#ffffe5","#fff7bc","#fee391","#fec44f","#fe9929","#ec7014","#cc4c02","#8c2d04","#662506"],
+    fmt: v => "£" + Math.round(v).toLocaleString("en-GB"),
+    note: "Total rateable value divided by the number of business premises. A high figure means large or high-value commercial property: offices, industry, retail parks."
+  },
+  rateable_value: {
+    label: "Total rateable value (£)",
+    buckets: [2e8,5e8,1e9,2e9,5e9,1e10],
+    colors: ["#f7fbff","#deebf7","#c6dbef","#9ecae1","#6baed6","#4292c6","#2171b5"],
+    fmt: v => v >= 1e9 ? "£" + (v/1e9).toFixed(2) + "bn"
+                        : "£" + Math.round(v/1e6) + "m",
+    note: "The size of the business base. Westminster and the City of London dominate on commercial property value rather than on population."
+  },
+  hdits_total: {
+    label: "Business premises (count)",
+    buckets: [3000,6000,10000,20000,30000,50000],
+    colors: ["#f7fcf5","#e5f5e0","#c7e9c0","#a1d99b","#74c476","#41ab5d","#238b45"],
+    fmt: v => Math.round(v).toLocaleString("en-GB"),
+    note: "Number of hereditaments on the rating list: the business equivalent of dwellings. Counts track population and business density, not property value."
+  },
+  relief_share: {
+    label: "Relief as a share of rateable value (%)",
+    buckets: [0.02,0.05,0.08,0.12,0.18,0.25],
+    colors: ["#f7f4f9","#e7e1ef","#d4b9da","#c994c7","#df65b0","#dd1c77","#980043"],
+    fmt: v => (v*100).toFixed(1) + "%",
+    note: "Relief value divided by rateable value. Indicative only: the two figures come from different years and definitions. High values indicate a large small-business or charity presence."
+  }
+};
+
+const svg = document.getElementById("map");
+const tip = document.getElementById("tip");
+let current = "rv_per_hdit";
+
+function legendItems(sc){
+  const out = [];
+  const b = sc.buckets, c = sc.colors;
+  out.push({color:c[0], label:"< " + sc.fmt(b[0])});
+  for(let i=1;i<b.length;i++){
+    out.push({color:c[i], label:sc.fmt(b[i-1]) + " – " + sc.fmt(b[i])});
+  }
+  out.push({color:c[c.length-1], label:"≥ " + sc.fmt(b[b.length-1])});
+  return out;
+}
+function colorFor(v, sc){
+  const b = sc.buckets;
+  for(let i=0;i<b.length;i++){ if(v < b[i]) return sc.colors[i]; }
+  return sc.colors[sc.colors.length-1];
+}
+
+// Mercator projection fitted to the data bounds.
+const W = 900, H = 1000;
+svg.setAttribute("viewBox", `0 0 ${W} ${H}`);
+svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+
+function mercator(lon, lat){
+  const x = lon;
+  const y = Math.log(Math.tan(Math.PI/4 + (lat*Math.PI/180)/2)) * 180/Math.PI;
+  return [x, -y];
+}
+
+const bounds = {minx:1e9,maxx:-1e9,miny:1e9,maxy:-1e9};
+GEO.features.forEach(f=>{
+  const g = f.geometry;
+  const rings = g.type === "Polygon" ? g.coordinates : g.coordinates.flat();
+  rings.forEach(ring=>ring.forEach(([lon,lat])=>{
+    const [x,y] = mercator(lon,lat);
+    if(x<bounds.minx) bounds.minx=x; if(x>bounds.maxx) bounds.maxx=x;
+    if(y<bounds.miny) bounds.miny=y; if(y>bounds.maxy) bounds.maxy=y;
+  }));
+});
+
+const pad = 12;
+const sx = (W - pad*2) / (bounds.maxx - bounds.minx);
+const sy = (H - pad*2) / (bounds.maxy - bounds.miny);
+const s = Math.min(sx, sy);
+const ox = pad + ((W - pad*2) - (bounds.maxx-bounds.minx)*s)/2;
+const oy = pad + ((H - pad*2) - (bounds.maxy-bounds.miny)*s)/2;
+
+function project(lon, lat){
+  const [x,y] = mercator(lon,lat);
+  return [ox + (x-bounds.minx)*s, oy + (y-bounds.miny)*s];
+}
+
+function pathGen(feature){
+  const g = feature.geometry;
+  const polys = g.type === "Polygon" ? [g.coordinates] : g.coordinates;
+  let d = "";
+  polys.forEach(poly=>{
+    poly.forEach(ring=>{
+      ring.forEach(([lon,lat],i)=>{
+        const [x,y] = project(lon,lat);
+        d += (i ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1);
+      });
+      d += "Z";
+    });
+  });
+  return d;
+}
+
+function render(){
+  const sc = SCALES[current];
+  svg.innerHTML = "";
+
+  GEO.features.forEach(f=>{
+    const p = document.createElementNS("http://www.w3.org/2000/svg","path");
+    p.setAttribute("d", pathGen(f));
+    const v = f.properties[current];
+    if(v == null || isNaN(v)){
+      p.setAttribute("fill", "#e8e8e8");
+      p.setAttribute("class", "nodata");
+    } else {
+      p.setAttribute("fill", colorFor(v, sc));
+    }
+    p.setAttribute("stroke", "#fff");
+    p.setAttribute("stroke-width", "0.35");
+
+    p.addEventListener("mousemove", e=>{
+      const pr = f.properties;
+      let html = "<b>" + pr.name + "</b>";
+      if(pr.nation) html += "<br><span style='opacity:.7'>" + pr.nation + "</span>";
+      if(v == null || isNaN(v)){
+        html += "<br><span style='opacity:.7'>no business rates data</span>";
+      } else {
+        html += "<br>" + sc.label + ": <b>" + sc.fmt(v) + "</b>";
+        const money = x => "£" + Math.round(x).toLocaleString("en-GB");
+        if(pr.rateable_value != null)
+          html += "<br><span style='opacity:.85'>rateable value " + money(pr.rateable_value) + "</span>";
+        if(pr.hdits_total != null)
+          html += "<br><span style='opacity:.85'>" + Math.round(pr.hdits_total).toLocaleString("en-GB") + " premises</span>";
+        if(pr.relief_value != null)
+          html += "<br><span style='opacity:.85'>relief " + money(pr.relief_value) + "</span>";
+      }
+      tip.innerHTML = html;
+      tip.style.opacity = 1;
+      tip.style.left = (e.clientX + 14) + "px";
+      tip.style.top = (e.clientY + 14) + "px";
+    });
+    p.addEventListener("mouseleave", ()=>{ tip.style.opacity = 0; });
+    svg.appendChild(p);
+  });
+
+  const lg = document.getElementById("legend");
+  lg.innerHTML = "";
+  legendItems(sc).forEach(item=>{
+    const row = document.createElement("div");
+    row.className = "legend-row";
+    row.innerHTML = '<span class="sw" style="background:' + item.color + '"></span><span>' + item.label + '</span>';
+    lg.appendChild(row);
+  });
+
+  const vals = GEO.features.map(f=>f.properties[current]).filter(v=>v!=null && !isNaN(v));
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const mean = vals.reduce((a,b)=>a+b,0)/vals.length;
+  document.getElementById("stat").textContent =
+    vals.length + " councils with data  ·  min " + sc.fmt(min) +
+    "  ·  max " + sc.fmt(max) + "  ·  mean " + sc.fmt(mean);
+  document.getElementById("note").textContent = sc.note;
+}
+
+document.querySelectorAll(".tab[data-m]").forEach(tab=>{
+  tab.addEventListener("click", ()=>{
+    document.querySelectorAll(".tab").forEach(t=>t.classList.remove("on"));
+    tab.classList.add("on");
+    current = tab.dataset.m;
+    render();
+  });
+});
+
+render();
+</script>
+</body>
+</html>

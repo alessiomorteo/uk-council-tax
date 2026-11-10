@@ -40,14 +40,28 @@
 
   <div class="cards">
     <a class="card" href="map.html">
-      <h2>Interactive map</h2>
-      <p>Choropleth with five views: Band D, Band A, the Band H multiplier,
-         affordability, and the multiplier by nation. Hover any council.</p>
+      <h2>Council tax map</h2>
+      <p>Choropleth with six views: Band D, Band A, the Band H multiplier,
+         affordability, revenue per dwelling, and the multiplier by nation.
+         Hover any council.</p>
     </a>
     <a class="card" href="table.html">
-      <h2>Data table</h2>
-      <p>All 348 councils with every band, median pay and affordability.
+      <h2>Council tax table</h2>
+      <p>All 348 councils with every band, median pay, dwellings and revenue.
          Sort any column, filter by nation or council name.</p>
+    </a>
+  </div>
+
+  <div class="cards">
+    <a class="card" href="rates_map.html">
+      <h2>Business rates map</h2>
+      <p>Non-domestic rates for all 350 councils: rateable value per premises,
+         total rateable value, business premises, and relief share.</p>
+    </a>
+    <a class="card" href="rates_table.html">
+      <h2>Business rates table</h2>
+      <p>Premises, rateable value, relief value and the small business relief
+         breakdown, sortable and filterable.</p>
     </a>
   </div>
 
@@ -81,6 +95,42 @@
       Three lines that sit on top of each other until band E, where Scotland
       peels away. Bands A to D are identical everywhere. Scotland changed its
       E to H multipliers on 1 April 2017 under SSI 2016/368.
+    </figcaption>
+  </figure>
+
+  <h3>Dwellings and revenue</h3>
+  <figure>
+    <img src="figures/revenue.png"
+         alt="Dwellings, revenue and the tax base">
+    <figcaption>
+      Council Taxbase adds the denominator the charges alone cannot supply.
+      Gross liability is dwellings times charge; the published tax base is what
+      a council actually budgets on, and it is 6 to 11 per cent lower because
+      discounts, premiums and exemptions come off first.
+    </figcaption>
+  </figure>
+
+  <h3>What the discounts are worth</h3>
+  <figure>
+    <img src="figures/discount_values.png"
+         alt="The value of discounts and council tax support">
+    <figcaption>
+      England's discounts and council tax support are worth 18.4 per cent of
+      gross liability: 4.3bn in discounts and premiums, 5.6bn in support. The
+      reduction runs from 35.9 per cent in South Tyneside to under 10 per cent in
+      parts of the Home Counties.
+    </figcaption>
+  </figure>
+
+  <h3>Business rates</h3>
+  <figure>
+    <img src="figures/business_rates.png"
+         alt="Business rates by billing authority">
+    <figcaption>
+      Non-domestic rates are a separate tax on business property, set through a
+      national multiplier rather than a local band ladder. Rateable value per
+      premises spans 8,880 in the Isles of Scilly to 146,135 in the City of
+      London. England's rateable value rose 20 per cent between 2011 and 2025.
     </figcaption>
   </figure>
 

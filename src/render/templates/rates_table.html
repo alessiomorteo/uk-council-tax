@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Business Rates by Council</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#666; --line:#e5e5e5; --accent:#2d63a0;
+          --card:#fff; --bg:#fafafa; }
+  * { box-sizing:border-box; }
+  body { margin:0; padding:26px 22px 40px; font-family:-apple-system,
+         BlinkMacSystemFont,"Segoe UI",sans-serif; color:var(--ink);
+         background:var(--bg); }
+  .wrap { max-width:1600px; margin:0 auto; }
+  h1 { font-size:23px; margin:0 0 4px; letter-spacing:-.02em; }
+  .sub { color:var(--muted); font-size:13.5px; margin-bottom:14px; }
+  .nav { font-size:12.5px; margin-bottom:16px; }
+  .nav a { color:var(--accent); text-decoration:none; margin-right:14px; }
+  .nav a:hover { text-decoration:underline; }
+  .controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+              margin-bottom:12px; }
+  .pill { font-size:12px; padding:5px 12px; border-radius:20px;
+          border:1px solid var(--line); background:#fff; cursor:pointer;
+          font-weight:600; color:#444; }
+  .pill.on { background:#1a1a1a; color:#fff; border-color:#1a1a1a; }
+  input[type=search] { font-size:13px; padding:7px 12px; border-radius:8px;
+                       border:1px solid var(--line); background:#fff;
+                       min-width:220px; font-family:inherit; }
+  .count { font-size:12.5px; color:var(--muted); margin-left:auto; }
+  .tablebox { background:#fff; border:1px solid var(--line); border-radius:10px;
+              overflow:auto; max-height:74vh; }
+  table { width:100%; border-collapse:collapse; font-size:12.5px; }
+  thead th { position:sticky; top:0; background:#f4f4f4; z-index:2;
+             text-align:right; padding:9px 10px; font-size:11.5px;
+             font-weight:700; border-bottom:1px solid var(--line);
+             cursor:pointer; white-space:nowrap; user-select:none; }
+  thead th:first-child, thead th:nth-child(2) { text-align:left; }
+  thead th:hover { background:#eaeaea; }
+  tbody td { padding:7px 10px; border-top:1px solid #f0f0f0;
+             text-align:right; font-variant-numeric:tabular-nums;
+             white-space:nowrap; }
+  tbody td:first-child, tbody td:nth-child(2) { text-align:left; }
+  tbody tr:hover { background:#f8f8f8; }
+  .nat { display:inline-block; width:7px; height:7px; border-radius:50%;
+         margin-right:6px; vertical-align:middle; }
+  .nat.E { background:#2d63a0; } .nat.W { background:#b03434; }
+  .nat.S { background:#3d8b5f; }
+  .caveats { margin-top:22px; background:#fff; border:1px solid var(--line);
+             border-radius:10px; padding:16px 20px; font-size:12.5px;
+             color:#444; line-height:1.7; }
+  .caveats h3 { font-size:13.5px; margin:0 0 8px; }
+  .caveats ul { margin:0 0 12px; padding-left:18px; }
+  .caveats li { margin-bottom:6px; }
+  .sources { margin-top:16px; font-size:11.5px; color:var(--muted);
+             line-height:1.7; }
+  @media (max-width:640px){
+    body { padding:16px 12px 30px; }
+    h1 { font-size:19px; }
+    .count { margin-left:0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>Business Rates by Council</h1>
+  <div class="sub">Non-domestic rates for all 350 local authorities — sort any column, filter by nation</div>
+  <div class="nav">
+    <a href="index.html">Home</a>
+    <a href="rates_map.html">Business rates map</a>
+    <a href="map.html">Council tax map</a>
+    <a href="table.html">Council tax table</a>
+  </div>
+
+  <div class="controls">
+    <div class="pill on" data-n="all">All</div>
+    <div class="pill" data-n="England">England</div>
+    <div class="pill" data-n="Wales">Wales</div>
+    <div class="pill" data-n="Scotland">Scotland</div>
+    <input type="search" id="q" placeholder="Search council…">
+    <span class="count" id="count"></span>
+  </div>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr id="hdr"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+
+  <div class="caveats">
+    <h3>Caveats and limitations</h3>
+    <ul>
+      <li><strong>Three sources, three vintages.</strong> Relief counts and values: MHCLG NNDR1 (England, 2026-27 forecast), StatsWales (Wales, 2026-27), Scottish Government NDR reliefs (Scotland, 2025-26). Rateable value: VOA stock of properties at 31 March 2025 (England and Wales), Scottish valuation roll at 1 June 2025.</li>
+      <li><strong>Rateable value and relief value are not the same measure.</strong> Rateable value is the size of the business base. Relief is what is given away against it. The relief columns and the rateable value columns come from different years, so their ratio is indicative.</li>
+      <li><strong>England's relief breakdown is far richer</strong> than the other two nations: 30 relief types are published, including empty property, charity, rural, retail/hospitality/leisure and enterprise zones. Wales and Scotland publish fewer.</li>
+      <li><strong>Scotland's designated utilities</strong> — 54 properties, £799m of rateable value — are valued centrally and excluded from the council rows. The Scotland total in this table is therefore £6.78bn, not the published £7.58bn.</li>
+      <li><strong>Wigan and Woking</strong> report no hereditament count in the source, marked not applicable.</li>
+      <li><strong>Business rates cannot be compared with council tax as a burden.</strong> They are levied on property, set through a national multiplier, and much of the yield is pooled and redistributed.</li>
+    </ul>
+
+    <div class="sources">
+      <strong>Sources:</strong> MHCLG, <em>National non-domestic rates collected by councils: 2026-27 forecast</em>; Valuation Office Agency, <em>Non-domestic rating: stock of properties 2025</em>; Welsh Government / StatsWales, <em>Non-domestic rates estimates by local authority</em>; Scottish Government, <em>Non-domestic rates relief statistics 2025</em>. All Open Government Licence v3.0.
+    </div>
+  </div>
+
+</div>
+
+<script>
+const DATA = __ROWDATA__;
+
+const COLS = [
+  {k:"nation",          t:"Nation",          type:"s"},
+  {k:"authority",       t:"Council",         type:"s"},
+  {k:"ons_code",        t:"ONS code",        type:"s"},
+  {k:"hdits_total",     t:"Premises",        type:"n", count:true},
+  {k:"rateable_value",  t:"Rateable value",  type:"n", money:true},
+  {k:"rv_per_hdit",     t:"RV per premises", type:"n", money:true, heat:true},
+  {k:"relief_value",    t:"Relief value",    type:"n", money:true},
+  {k:"relief_share",    t:"Relief share",    type:"n", pct:true},
+  {k:"total_sbrr",      t:"SBRR count",      type:"n", count:true},
+  {k:"value_sbrr",      t:"SBRR value",      type:"n", money:true},
+  {k:"value_empty_relief", t:"Empty relief", type:"n", money:true},
+  {k:"total_discretionary", t:"Discretionary count", type:"n", count:true}
+];
+
+let sortKey = "authority", sortDir = 1, nationFilter = "all", query = "";
+
+const fmtMoney = v => v==null ? "—" : "£" + Math.round(v).toLocaleString("en-GB");
+const fmtPct   = v => v==null ? "—" : (v*100).toFixed(1) + "%";
+const fmtCount = v => v==null ? "—" : Math.round(v).toLocaleString("en-GB");
+
+function heatColor(v){
+  // RV per premises: 8,880 (low) to 146,135 (high)
+  const lo = 8880, hi = 146135;
+  const t = Math.max(0, Math.min(1, (v-lo)/(hi-lo)));
+  const r = Math.round(255 - t*155);
+  const g = Math.round(255 - t*215);
+  const b = Math.round(255 - t*215);
+  return "rgb("+r+","+g+","+b+")";
+}
+
+function render(){
+  const hdr = document.getElementById("hdr");
+  hdr.innerHTML = "";
+  COLS.forEach(c=>{
+    const th = document.createElement("th");
+    th.textContent = c.t + (sortKey === c.k ? (sortDir === 1 ? " ▲" : " ▼") : "");
+    th.addEventListener("click", ()=>{
+      // First click on a new column sorts descending for numbers (largest
+      // first, which is what a reader wants) and ascending for text.
+      if(sortKey === c.k){
+        sortDir = -sortDir;
+      } else {
+        sortKey = c.k;
+        sortDir = c.type === "n" ? -1 : 1;
+      }
+      render();
+    });
+    hdr.appendChild(th);
+  });
+
+  let rows = DATA.filter(r=>{
+    if(nationFilter !== "all" && r.nation !== nationFilter) return false;
+    if(query && !r.authority.toLowerCase().includes(query)) return false;
+    return true;
+  });
+
+  rows = rows.slice().sort((a,b)=>{
+    const av = a[sortKey], bv = b[sortKey];
+    if(av == null) return 1;
+    if(bv == null) return -1;
+    if(typeof av === "string") return av.localeCompare(bv) * sortDir;
+    return (av - bv) * sortDir;
+  });
+
+  const body = document.getElementById("body");
+  body.innerHTML = "";
+  rows.forEach(r=>{
+    const tr = document.createElement("tr");
+    COLS.forEach(c=>{
+      const td = document.createElement("td");
+      const v = r[c.k];
+      if(c.k === "nation"){
+        td.innerHTML = '<span class="nat ' + r.nation[0] + '"></span>' + r.nation;
+      } else if(c.type === "n"){
+        td.textContent = c.money ? fmtMoney(v) : (c.pct ? fmtPct(v) : fmtCount(v));
+        if(c.heat && v != null){
+          td.style.background = heatColor(v);
+        }
+      } else {
+        td.textContent = v == null || v === "" ? "—" : v;
+      }
+      tr.appendChild(td);
+    });
+    body.appendChild(tr);
+  });
+
+  document.getElementById("count").textContent =
+    rows.length + " of " + DATA.length + " councils";
+}
+
+document.querySelectorAll(".pill").forEach(p=>{
+  p.addEventListener("click", ()=>{
+    document.querySelectorAll(".pill").forEach(x=>x.classList.remove("on"));
+    p.classList.add("on");
+    nationFilter = p.dataset.n;
+    render();
+  });
+});
+
+document.getElementById("q").addEventListener("input", e=>{
+  query = e.target.value.trim().toLowerCase();
+  render();
+});
+
+render();
+</script>
+</body>
+</html>

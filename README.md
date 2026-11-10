@@ -242,8 +242,10 @@ already present; pass `--force` to refetch.
 | `output/figures/discounts.png` | exempt rate map, rate distributions, extremes |
 | `output/figures/discount_values.png` | discounts priced in pounds, ranked, waterfall |
 | `output/figures/business_rates.png` | rateable value map, 15-year series, nation totals |
-| `output/pages/map.html` | interactive map, 6 views, hover detail |
-| `output/pages/table.html` | sortable/filterable 348-row table, 21 columns |
+| `output/pages/map.html` | council tax map, 6 views, hover detail |
+| `output/pages/table.html` | council tax table, 348 rows, 20 columns |
+| `output/pages/rates_map.html` | business rates map, 4 views, hover detail |
+| `output/pages/rates_table.html` | business rates table, 350 rows, 12 columns |
 
 The HTML pages are **self-contained** — GeoJSON and rows are inlined as JS
 literals, because `fetch()` of a sibling file is blocked by CORS on `file://`.
