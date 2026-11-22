@@ -285,7 +285,7 @@ nothing about burden.
 the taxbase join.
 
 **Why:** the ONS population file uses the current codes but retains the older
-Bartley/Sheffield numbering in some editions. Applying the existing recode gives
+Barnsley and Sheffield numbering in some editions. Applying the existing recode gives
 348 of 348 against the affordability set with no name matching at all, which is
 the cleanest join in the pipeline.
 
