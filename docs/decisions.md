@@ -260,3 +260,36 @@ than as a mapping problem.
 total — they cover small business, empty property and other discretionary, not
 every relief type. The relief-share measure is therefore indicative, and the page
 says so.
+
+---
+
+## Normalise with population rather than comparing raw totals
+
+**Decision:** add ONS mid-year population estimates and derive
+`council_tax_per_head` and `dwellings_per_1000`, rather than leaving size
+comparisons on raw revenue.
+
+**Why:** a raw revenue total mostly measures how many people live somewhere.
+Normalising inverts the national ranking: Wales raises the most council tax per
+head (£1,018) despite having lower Band D charges than England (£974), because
+its stock sits lower in the bands and it has more dwellings per person. Scotland
+raises least (£808). A Band D league table alone shows the opposite ordering, so
+the per-head figure is the honest cross-nation comparison.
+
+**Rejected:** comparing raw gross revenue, which rewards population and tells you
+nothing about burden.
+
+## Join population on ONS code, with the recode applied
+
+**Decision:** match on the ONS code through `ONS_RECODE`, the same path used for
+the taxbase join.
+
+**Why:** the ONS population file uses the current codes but retains the older
+Bartley/Sheffield numbering in some editions. Applying the existing recode gives
+348 of 348 against the affordability set with no name matching at all, which is
+the cleanest join in the pipeline.
+
+Note the population file interleaves countries, regions, counties and
+metropolitan counties with the billing authorities. Filtering on the geography
+type is required: counties sit above districts and would double-count the same
+population, which is the same trap as the VOA `CTYMET` rows.

@@ -41,6 +41,12 @@ FULL_COLUMNS: list[str] = [
     "revenue_gross",
     "revenue_tax_base",
     "tax_base_ratio",
+    "population",
+    "density",
+    "median_age",
+    "area_sq_km",
+    "council_tax_per_head",
+    "dwellings_per_1000",
 ]
 
 
@@ -251,6 +257,54 @@ def add_taxbase(geo: pd.DataFrame) -> pd.DataFrame:
     return geo.drop(columns=["key"])
 
 
+def add_population(geo: pd.DataFrame) -> pd.DataFrame:
+    """Attach population, density and median age, and derive per-head measures.
+
+    Population lets every money column be normalised. The per-head figures are
+    the fairer comparison across councils of very different size, and they expose
+    things a raw total hides: Wales raises the most council tax per head despite
+    low Band D charges, because its dwelling stock sits lower in the bands.
+
+    Args:
+        geo: Output of :func:`build_geo_table`.
+
+    Returns:
+        The frame with ``population``, ``density``, ``median_age``,
+        ``area_sq_km``, ``council_tax_per_head`` and ``dwellings_per_1000``
+        added.
+    """
+    population = pd.read_csv(DATA_PROC / "population_long.csv")
+    population = population[population.year.astype(str) == "2025"].copy()
+    population["key"] = population["ons_code"].map(
+        lambda code: ONS_RECODE.get(code, code)
+    )
+    population = population.drop_duplicates(subset=["key"])
+
+    geo = geo.copy()
+    geo["key"] = geo["LAD24CD"].map(
+        lambda code: ONS_RECODE.get(code, code)
+        if isinstance(code, str) and code
+        else None
+    )
+
+    merged = geo.merge(
+        population[["key", "population", "density", "median_age", "area_sq_km"]],
+        on="key",
+        how="left",
+    )
+
+    merged["council_tax_per_head"] = (
+        merged["revenue_gross"] / merged["population"]
+    ).round(0)
+    merged["dwellings_per_1000"] = (
+        merged["dwellings"] / merged["population"] * 1000
+    ).round(1)
+
+    matched = int(merged["population"].notna().sum())
+    print(f"  population join: {matched}/{len(merged)} councils matched")
+    return merged.drop(columns=["key"])
+
+
 def main() -> None:
     """Join boundaries and earnings, then write the full and presentation tables."""
     print("Joining boundaries and earnings")
@@ -263,6 +317,7 @@ def main() -> None:
     print(f"  affordability: {len(affordable)} councils with earnings")
 
     affordable = add_taxbase(affordable)
+    affordable = add_population(affordable)
 
     affordable[FULL_COLUMNS].sort_values(["nation", "authority"]).to_csv(
         DATA_PROC / "uk_council_tax_full.csv", index=False

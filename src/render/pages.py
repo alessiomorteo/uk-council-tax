@@ -42,6 +42,10 @@ TABLE_COLUMNS: list[str] = [
     "mult_e",
     "mult_h",
     "dwellings",
+    "population",
+    "council_tax_per_head",
+    "density",
+    "median_age",
     "revenue_gross",
     "revenue_tax_base",
     "tax_base_published",
@@ -145,6 +149,22 @@ def slim_geojson(bands: pd.DataFrame, affordable: pd.DataFrame) -> dict[str, Any
                         and float(afford_row.dwellings) > 0
                         else None
                     ),
+                    "population": (
+                        int(afford_row.population)
+                        if pd.notna(afford_row.population) else None
+                    ),
+                    "density": (
+                        round(float(afford_row.density), 0)
+                        if pd.notna(afford_row.density) else None
+                    ),
+                    "median_age": (
+                        round(float(afford_row.median_age), 1)
+                        if pd.notna(afford_row.median_age) else None
+                    ),
+                    "council_tax_per_head": (
+                        round(float(afford_row.council_tax_per_head), 0)
+                        if pd.notna(afford_row.council_tax_per_head) else None
+                    ),
                 }
             )
         else:
@@ -156,6 +176,10 @@ def slim_geojson(bands: pd.DataFrame, affordable: pd.DataFrame) -> dict[str, Any
                     "revenue_gross": None,
                     "tax_base_published": None,
                     "rev_per_dwelling": None,
+                    "population": None,
+                    "density": None,
+                    "median_age": None,
+                    "council_tax_per_head": None,
                 }
             )
 

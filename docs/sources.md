@@ -79,6 +79,19 @@ different geography level), and rows with no `abolished year` (the file retains
 legacy districts merged away in 2019, 2021 and 2023).
 <https://www.gov.uk/government/statistics/non-domestic-rating-stock-of-properties-2025>
 
+## Population
+
+**2011 to 2025, by local authority**
+Office for National Statistics. *Estimates of the population for the UK, England,
+Wales, Scotland, and Northern Ireland*, mid-2025 edition.
+Table MYE4 = population by year; MYE5 = area and population density;
+MYE6 = median age; MYE3 = components of change; MYE2 = population by single year
+of age and sex. Header on row 7, data from row 8, on all sheets.
+Filter on the geography type: the sheets interleave countries, regions, counties
+and metropolitan counties with the 350 billing authorities, and counties sit above
+districts so including them double-counts.
+<https://www.ons.gov.uk/peoplepopulationandcommunity/populationandmigration/populationestimates/datasets/populationestimatesforukenglandandwalesscotlandandnorthernireland>
+
 ## Earnings
 
 **Median gross annual pay, 2025**

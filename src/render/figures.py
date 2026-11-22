@@ -1232,6 +1232,151 @@ def fig_business_rates(rates: pd.DataFrame) -> None:
     print(f"  {output.name}")
 
 
+def fig_population(geo: dict[str, Any], frame: pd.DataFrame) -> None:
+    """Render the population figure.
+
+    Panels: population density on a map, council tax per head on a map, and a
+    nation summary with the per-head comparison.
+
+    Args:
+        geo: The boundary FeatureCollection with population attached.
+        frame: Processed council data with population and per-head columns.
+    """
+    figure = plt.figure(figsize=(19, 9.6), facecolor="white")
+    grid = figure.add_gridspec(1, 3, width_ratios=[1, 1, 1], wspace=0.14)
+
+    # Panel 1: population density. Log scale, because the range runs from a few
+    # people per square kilometre to seventeen thousand.
+    axis_density = figure.add_subplot(grid[0, 0])
+    density = frame["density"].dropna()
+    colour_map = plt.get_cmap("YlGnBu")
+    draw_choropleth(
+        axis_density,
+        geo,
+        "density_log",
+        colour_map,
+        np.log10(max(1, density.min())),
+        np.log10(density.max()),
+        "Population density",
+    )
+    scalar = plt.cm.ScalarMappable(
+        cmap=colour_map,
+        norm=mcolors.Normalize(
+            np.log10(max(1, density.min())), np.log10(density.max())
+        ),
+    )
+    colourbar = figure.colorbar(
+        scalar, ax=axis_density, orientation="horizontal", fraction=0.045, pad=0.02
+    )
+    colourbar.set_label("People per sq km (log scale)", fontsize=9)
+
+    # Panel 2: council tax per head.
+    axis_head = figure.add_subplot(grid[0, 1])
+    per_head = frame["council_tax_per_head"].dropna()
+    colour_map_head = plt.get_cmap("RdYlBu_r")
+    draw_choropleth(
+        axis_head,
+        geo,
+        "council_tax_per_head",
+        colour_map_head,
+        per_head.min(),
+        per_head.max(),
+        "Gross council tax per head",
+    )
+    scalar_head = plt.cm.ScalarMappable(
+        cmap=colour_map_head, norm=mcolors.Normalize(per_head.min(), per_head.max())
+    )
+    colourbar_head = figure.colorbar(
+        scalar_head, ax=axis_head, orientation="horizontal", fraction=0.045, pad=0.02
+    )
+    colourbar_head.set_label("Gross council tax per head (£)", fontsize=9)
+
+    # Panel 3: the nation figures and the extremes.
+    axis_table = figure.add_subplot(grid[0, 2])
+    axis_table.axis("off")
+
+    rows = []
+    for nation in ["England", "Wales", "Scotland"]:
+        group = frame[frame.nation == nation]
+        population = group["population"].sum()
+        per = group["revenue_gross"].sum() / population
+        rows.append([
+            nation,
+            f"{population / 1e6:.2f}m",
+            f"{group['median_age'].median():.1f}",
+            f"{group['density'].median():,.0f}",
+            f"£{per:,.0f}",
+        ])
+
+    table = axis_table.table(
+        cellText=rows,
+        colLabels=["Nation", "Population", "Median age", "Density", "Per head"],
+        cellLoc="right",
+        loc="upper center",
+        bbox=[0.0, 0.44, 1.0, 0.36],
+    )
+    table.auto_set_font_size(False)
+    table.set_fontsize(9.4)
+    for (row_index, _), cell in table.get_celld().items():
+        cell.set_edgecolor("#e2e2e2")
+        if row_index == 0:
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#f4f4f4")
+
+    top = frame.nlargest(3, "council_tax_per_head")
+    low = frame.nsmallest(3, "council_tax_per_head")
+    extremes = [
+        [label, str(row["authority"])[:20], f"£{row['council_tax_per_head']:,.0f}"]
+        for label, subset in [("Highest per head", top), ("Lowest per head", low)]
+        for _, row in subset.iterrows()
+    ]
+    extremes_table = axis_table.table(
+        cellText=extremes,
+        colLabels=["", "Council", "Per head"],
+        cellLoc="right",
+        loc="upper center",
+        bbox=[0.0, 0.03, 1.0, 0.34],
+    )
+    extremes_table.auto_set_font_size(False)
+    extremes_table.set_fontsize(9.0)
+    for (row_index, _), cell in extremes_table.get_celld().items():
+        cell.set_edgecolor("#e2e2e2")
+        if row_index == 0:
+            cell.set_text_props(fontweight="bold")
+            cell.set_facecolor("#f4f4f4")
+
+    axis_table.text(
+        0.0, 0.40,
+        "Wales raises the most council tax per head despite low Band D\n"
+        "charges: its dwelling stock sits lower in the bands and it has\n"
+        "more dwellings per person. Scotland raises the least.",
+        transform=axis_table.transAxes, fontsize=8.5, color="#555",
+        va="top", linespacing=1.5,
+    )
+    axis_table.set_title(
+        "Per head, and what drives it", fontsize=12.5, fontweight="bold",
+        loc="left", pad=10,
+    )
+
+    figure.suptitle(
+        "Council Tax Comparison Across the UK: population and per-head burden",
+        fontsize=16, fontweight="bold", x=0.012, ha="left", y=0.985,
+    )
+    figure.text(
+        0.012, 0.945,
+        "ONS mid-year population estimates, mid-2025. Gross council tax is "
+        "dwellings times charge before discounts; the per-head figure divides "
+        "that by resident population.",
+        fontsize=9.3, color="#555", ha="left",
+    )
+    plt.tight_layout(rect=[0, 0, 1, 0.925])
+
+    output = OUT_FIG / "population.png"
+    plt.savefig(output, dpi=155, facecolor="white", bbox_inches="tight")
+    plt.close(figure)
+    print(f"  {output.name}")
+
+
 def main() -> None:
     """Render every static figure."""
     print("Rendering figures ->", OUT_FIG)
@@ -1252,6 +1397,10 @@ def main() -> None:
             "revenue_gross",
             "revenue_tax_base",
             "tax_base_ratio",
+            "population",
+            "density",
+            "median_age",
+            "council_tax_per_head",
         ],
     )
 
@@ -1264,6 +1413,10 @@ def main() -> None:
         properties["rev_per_dwelling"] = (
             gross / dwellings if gross and dwellings else None
         )
+        density = properties.get("density")
+        properties["density_log"] = (
+            float(np.log10(density)) if density and density > 0 else None
+        )
 
     fig_band_levels(geo)
     fig_affordability(geo, frame)
@@ -1272,6 +1425,7 @@ def main() -> None:
     fig_discounts(pd.read_csv(DATA_PROC / "council_discounts.csv"))
     fig_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
     fig_business_rates(pd.read_csv(DATA_PROC / "business_rates.csv"))
+    fig_population(geo, frame)
 
 
 if __name__ == "__main__":

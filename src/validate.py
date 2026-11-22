@@ -561,6 +561,89 @@ def check_rateable_value(values: pd.DataFrame) -> None:
     )
 
 
+def check_population(population: pd.DataFrame, full: pd.DataFrame) -> None:
+    """Assert the population table is complete and reconciles.
+
+    Args:
+        population: The long population table.
+        full: The joined council tax table with per-head columns.
+    """
+    check(
+        "population: 15 years from 2011 to 2025",
+        population.year.nunique() == 15 and str(population.year.min()) == "2011",
+        f"{population.year.nunique()} years",
+    )
+    check(
+        "population: 350 authorities",
+        population.ons_code.nunique() == 350,
+        population.ons_code.nunique(),
+    )
+
+    latest = population[population.year.astype(str) == "2025"]
+    # England's mid-2025 population is published as 58,834,812.
+    england = latest[latest.nation == "England"].population.sum()
+    check(
+        "population: England 2025 is about 58.8m",
+        abs(england - 58.834812e6) / 58.834812e6 < 0.01,
+        f"{england / 1e6:.2f}m",
+    )
+    check(
+        "population: Wales 2025 is about 3.2m",
+        abs(latest[latest.nation == "Wales"].population.sum() - 3.18e6) < 0.1e6,
+        f"{latest[latest.nation == 'Wales'].population.sum() / 1e6:.2f}m",
+    )
+    check(
+        "population: Scotland 2025 is about 5.5m",
+        abs(latest[latest.nation == "Scotland"].population.sum() - 5.55e6) < 0.1e6,
+        f"{latest[latest.nation == 'Scotland'].population.sum() / 1e6:.2f}m",
+    )
+
+    # Density and median age must be present and plausible.
+    check(
+        "population: every authority has a density",
+        latest.density.notna().all(),
+        f"{int(latest.density.isna().sum())} missing",
+    )
+    check(
+        "population: every authority has a median age",
+        latest.median_age.notna().all(),
+        f"{int(latest.median_age.isna().sum())} missing",
+    )
+    check(
+        "population: median ages fall between 25 and 60",
+        latest.median_age.between(25, 60).all(),
+        f"{latest.median_age.min():.1f} to {latest.median_age.max():.1f}",
+    )
+    check(
+        "population: densities are positive",
+        (latest.density > 0).all(),
+        f"min {latest.density.min():.0f}",
+    )
+
+    # The join must reach every council that has revenue.
+    check(
+        "population: joined to all 348 councils",
+        full.population.notna().all(),
+        f"{int(full.population.isna().sum())} missing",
+    )
+    check(
+        "population: per-head council tax is plausible",
+        full.council_tax_per_head.between(200, 3000).all(),
+        f"{full.council_tax_per_head.min():.0f} to {full.council_tax_per_head.max():.0f}",
+    )
+    # Wales raises the most per head and Scotland the least: a real finding, so
+    # it is asserted rather than left to drift silently.
+    per_head = {
+        nation: group.revenue_gross.sum() / group["population"].sum()
+        for nation, group in full.groupby("nation")
+    }
+    check(
+        "population: Wales has the highest council tax per head",
+        per_head["Wales"] > per_head["England"] > per_head["Scotland"],
+        str({k: round(v) for k, v in per_head.items()}),
+    )
+
+
 def main() -> None:
     """Run every validation check.
 
@@ -587,6 +670,10 @@ def main() -> None:
     check_discount_values(pd.read_csv(DATA_PROC / "discount_values.csv"))
     check_business_rates(pd.read_csv(DATA_PROC / "business_rates.csv"))
     check_rateable_value(pd.read_csv(DATA_PROC / "rateable_value.csv"))
+    check_population(
+        pd.read_csv(DATA_PROC / "population_long.csv"),
+        pd.read_csv(DATA_PROC / "uk_council_tax_full.csv"),
+    )
 
     print()
     if FAILURES:

@@ -9,6 +9,7 @@ fetch:
 
 parse:
 	$(PY) src/build/parse.py
+	$(PY) src/build/population.py
 
 align:
 	$(PY) src/build/align.py

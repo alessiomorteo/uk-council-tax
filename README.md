@@ -106,6 +106,31 @@ Home Counties**. Liverpool, Middlesbrough, Hartlepool and Knowsley all sit above
 34%. In City of London and Isles of Scilly the figure is *negative*: the
 second-homes premium raises more than discounts give away.
 
+### Population and per-head burden
+
+![Population density and council tax per head](output/figures/population.png)
+
+ONS mid-year estimates give population, density, area and median age for every
+council, each spanning 2011 to 2025. The join is clean: 350 of 350 on ONS code,
+no recode needed.
+
+The value is normalisation. Per head, the national picture inverts:
+
+| Nation | Population | Median age | Per head |
+|---|---|---|---|
+| England | 58.82m | 42.3 | £974 |
+| **Wales** | 3.18m | 44.4 | **£1,018** |
+| Scotland | 5.55m | 45.7 | £808 |
+
+**Wales raises the most council tax per head despite having lower Band D charges
+than England.** Its dwelling stock sits lower in the bands — proportionally more
+Band A to D — and it has more dwellings per person. Scotland raises least. A
+Band D league table alone would have shown the opposite.
+
+The council-level spread is wider still: **Kensington and Chelsea £1,425 against
+Wandsworth £537**, a 2.7-fold difference between neighbouring inner London
+boroughs driven almost entirely by band mix and rate history.
+
 ### Business rates
 
 ![Business rates by billing authority](output/figures/business_rates.png)
@@ -242,8 +267,9 @@ already present; pass `--force` to refetch.
 | `output/figures/discounts.png` | exempt rate map, rate distributions, extremes |
 | `output/figures/discount_values.png` | discounts priced in pounds, ranked, waterfall |
 | `output/figures/business_rates.png` | rateable value map, 15-year series, nation totals |
-| `output/pages/map.html` | council tax map, 6 views, hover detail |
-| `output/pages/table.html` | council tax table, 348 rows, 20 columns |
+| `output/figures/population.png` | density map, per-head map, nation and extremes |
+| `output/pages/map.html` | council tax map, 8 views, hover detail |
+| `output/pages/table.html` | council tax table, 348 rows, 25 columns |
 | `output/pages/rates_map.html` | business rates map, 4 views, hover detail |
 | `output/pages/rates_table.html` | business rates table, 350 rows, 12 columns |
 

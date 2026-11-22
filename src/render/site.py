@@ -64,14 +64,14 @@ LANDING = """<!DOCTYPE html>
   <div class="cards">
     <a class="card" href="map.html">
       <h2>Council tax map</h2>
-      <p>Choropleth with six views: Band D, Band A, the Band H multiplier,
-         affordability, revenue per dwelling, and the multiplier by nation.
-         Hover any council.</p>
+      <p>Choropleth with eight views: Band D, Band A, the Band H multiplier,
+         affordability, revenue per dwelling, council tax per head, population
+         density, and the multiplier by nation. Hover any council.</p>
     </a>
     <a class="card" href="table.html">
       <h2>Council tax table</h2>
-      <p>All 348 councils with every band, median pay, dwellings and revenue.
-         Sort any column, filter by nation or council name.</p>
+      <p>All 348 councils with every band, median pay, dwellings, revenue,
+         population, density and median age. Sort any column.</p>
     </a>
   </div>
 
@@ -142,6 +142,20 @@ LANDING = """<!DOCTYPE html>
       gross liability: 4.3bn in discounts and premiums, 5.6bn in support. The
       reduction runs from 35.9 per cent in South Tyneside to under 10 per cent in
       parts of the Home Counties.
+    </figcaption>
+  </figure>
+
+  <h3>Population and the per-head burden</h3>
+  <figure>
+    <img src="figures/population.png"
+         alt="Population density and council tax per head">
+    <figcaption>
+      ONS mid-year estimates let every money column be normalised. The per-head
+      view is the fairer comparison across councils of very different size:
+      Wales raises 1,018 per head and Scotland 808, despite Wales having lower
+      Band D charges, because its dwelling stock sits lower in the bands. Tower
+      Hamlets is 16,906 people per sq km against under 30 in the sparsest
+      Scottish council areas.
     </figcaption>
   </figure>
 

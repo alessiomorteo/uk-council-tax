@@ -122,6 +122,10 @@ const COLS = [
   {k:"band_h_pct_pay",t:"Band H % pay",  type:"n", pct:true},
   {k:"dwellings",     t:"Dwellings",     type:"n", count:true},
   {k:"rev_per_dwelling",t:"£ per dwelling", type:"n", money:true},
+  {k:"population",    t:"Population",    type:"n", count:true},
+  {k:"council_tax_per_head",t:"£ per head", type:"n", money:true},
+  {k:"density",       t:"Density /km²",  type:"n", count:true},
+  {k:"median_age",    t:"Median age",    type:"n", dec:true},
   {k:"revenue_gross", t:"Gross revenue", type:"n", money:true},
   {k:"tax_base_published",t:"Tax base (BDE)",type:"n", count:true},
   {k:"revenue_tax_base",t:"Budgeted revenue",type:"n", money:true}
@@ -189,7 +193,12 @@ function render(){
         td.innerHTML = '<span class="nat '+r.nation[0]+'"></span>'+r.nation;
       } else if(c.type==="n"){
         td.className = "num" + (c.cls?" "+c.cls:"");
-        td.textContent = c.money ? fmtMoney(v) : (c.pct ? fmtPct(v) : (c.mult ? fmtMult(v) : (c.count ? v.toLocaleString("en-GB") : v)));
+        td.textContent = c.money ? fmtMoney(v)
+                       : c.pct   ? fmtPct(v)
+                       : c.mult  ? fmtMult(v)
+                       : c.dec   ? (v==null ? "—" : v.toFixed(1))
+                       : c.count ? (v==null ? "—" : v.toLocaleString("en-GB"))
+                       : v;
         if(c.heat && v!=null){ td.classList.add("heat"); td.style.background = heatColor(v); }
       } else {
         td.textContent = v ?? "—";

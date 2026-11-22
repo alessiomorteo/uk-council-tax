@@ -93,6 +93,8 @@
   <div class="tab" data-m="band_a">Band A level (£)</div>
   <div class="tab" data-m="pct_income">Affordability (% of pay)</div>
   <div class="tab" data-m="rev_per_dwelling">Revenue per dwelling (£)</div>
+  <div class="tab" data-m="council_tax_per_head">Council tax per head (£)</div>
+  <div class="tab" data-m="density">Population density</div>
   <div class="tab" data-m="mult_table">Multiplier by nation</div>
 </div>
 
@@ -185,6 +187,20 @@ const SCALES = {
     colors: ["#ffffe5","#f7fcb9","#d9f0a3","#addd8e","#78c679","#41ab5d","#238443","#005a32","#003b20"],
     fmt: v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0}),
     note: "Dwellings × charge across all bands, divided by dwellings. Gross liability before discounts, so a ceiling rather than the collected figure. Derived here, not published."
+  },
+  council_tax_per_head: {
+    label: "Gross council tax per head (£)",
+    buckets: [600,750,850,950,1050,1150,1300],
+    colors: ["#313695","#4575b4","#74add1","#abd9e9","#fee090","#fdae61","#f46d43","#d73027"],
+    fmt: v => "£" + v.toLocaleString("en-GB",{maximumFractionDigits:0}),
+    note: "Gross council tax divided by resident population. The fairer comparison across councils of very different size: Wales raises most per head despite low Band D charges, Scotland least."
+  },
+  density: {
+    label: "Population density (people per sq km)",
+    buckets: [50,100,200,400,800,1600,3200,6400],
+    colors: ["#ffffcc","#d9f0a3","#addd8e","#78c679","#41ab5d","#238443","#006837","#004529"],
+    fmt: v => v.toLocaleString("en-GB",{maximumFractionDigits:0}),
+    note: "Resident population per square kilometre, ONS mid-2025. Tower Hamlets is 16,906; the sparsest Scottish council areas are under 30."
   }
 };
 
@@ -269,6 +285,13 @@ function draw(){
           extra += "<br><span style='opacity:.85'>"
                  + pr.dwellings.toLocaleString("en-GB") + " dwellings · gross "
                  + "£" + (pr.revenue_gross/1e6).toFixed(1) + "m</span>";
+        }
+        if(pr.population!=null){
+          extra += "<br><span style='opacity:.85'>population "
+                 + pr.population.toLocaleString("en-GB")
+                 + " · " + pr.density.toLocaleString("en-GB") + "/km²";
+          if(pr.median_age!=null) extra += " · median age " + pr.median_age;
+          extra += "</span>";
         }
         tip.innerHTML = "<b>"+pr.name+"</b><br>"+sc.label+": <b>"+sc.fmt(pr[current])+"</b>" + extra;
       }

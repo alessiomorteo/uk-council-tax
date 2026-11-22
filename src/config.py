@@ -80,6 +80,13 @@ SOURCES: dict[str, str] = {
         "https://assets.publishing.service.gov.uk/media/68df8415c487360cc70ca0af/"
         "ndr_stock_of_properties_2025.xlsx"
     ),
+    # ONS mid-year population estimates: population, area, density, median age.
+    "population": (
+        "https://www.ons.gov.uk/file?uri=/peoplepopulationandcommunity/"
+        "populationandmigration/populationestimates/datasets/"
+        "populationestimatesforukenglandandwalesscotlandandnorthernireland/"
+        "mid2025/mye25tablesuk.xlsx"
+    ),
     "nndr_scotland": (
         "https://www.gov.scot/binaries/content/documents/govscot/publications/"
         "statistics/2025/11/non-domestic-rates-relief-statistics-2025/documents/"
